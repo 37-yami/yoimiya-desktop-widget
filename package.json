@@ -1,0 +1,41 @@
+{
+  "name": "yoimiya-desktop-widget",
+  "version": "1.0.0",
+  "description": "宵宫桌面悬浮挂件 — Yoimiya Desktop Widget",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "start:win": "set ELECTRON_RUN_AS_NODE= && electron .",
+    "dev": "electron . --dev",
+    "dev:win": "set ELECTRON_RUN_AS_NODE= && electron . --dev",
+    "build": "electron-builder --win portable",
+    "build:dir": "electron-builder --win portable --dir"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^26.8.1"
+  },
+  "build": {
+    "appId": "com.yoimiya.desktop-widget",
+    "productName": "YoimiyaWidget",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "yoimiya-widget.html",
+      "yoimiya.gif",
+      "tray-icon.png",
+      "audio/**",
+      "node_modules/**"
+    ],
+    "win": {
+      "target": "portable"
+    },
+    "portable": {
+      "artifactName": "YoimiyaWidget.exe"
+    }
+  }
+}

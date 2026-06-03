@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>宵宫 · 悬浮挂件</title>
+  <style>
+    /* ============================================================
+       CSS Variables — Yoimiya Color Palette
+       ============================================================ */
+    :root {
+      --yoimiya-orange: #E8753A;
+      --yoimiya-gold:   #F0C040;
+      --yoimiya-warm:   #F4A261;
+      --yoimiya-red:    #D44040;
+      --yoimiya-cream:  #FFF8F0;
+      --yoimiya-dark:   #3B2010;
+      --yoimiya-shadow: rgba(200, 100, 30, 0.25);
+      --bubble-bg:      #FFFDF7;
+      --bubble-border:  #F0C040;
+    }
+
+    /* ============================================================
+       Reset & Base
+       ============================================================ */
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* ============================================================
+       Widget Container — Fixed bottom-right
+       ============================================================ */
+    .yoimiya-widget {
+      position: fixed;
+      bottom: 32px;
+      right: 32px;
+      z-index: 9999;
+
+      /* The entire widget acts as the anchor */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+
+      /* Breathing float animation */
+      animation: float 3.6s ease-in-out infinite;
+
+      /* Clickable */
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ============================================================
+       Float Animation (breathing)
+       ============================================================ */
+    @keyframes float {
+      0%, 100% {
+        transform: translateY(0);
+      }
+      28% {
+        transform: translateY(-12px);
+      }
+      56% {
+        transform: translateY(-4px);
+      }
+      84% {
+        transform: translateY(-10px);
+      }
+    }
+
+    /* ============================================================
+       Speech Bubble
+       ============================================================ */
+    .speech-bubble {
+      /* Position above the character */
+      position: absolute;
+      bottom: calc(100% + 22px);  /* sit above character with gap */
+      left: 50%;
+      transform: translateX(-50%);
+
+      /* Sizing — 宽度自适应文字长度，自动换行 */
+      width: max-content;
+      max-width: 200px;
+      height: auto;
+      padding: 12px 18px;
+
+      /* Comic bubble styling */
+      background: var(--bubble-bg);
+      border: 3px solid var(--bubble-border);
+      border-radius: 20px 20px 20px 8px;  /* slight asymmetry = comic feel */
+      box-shadow:
+        0 4px 16px var(--yoimiya-shadow),
+        0 1px 3px rgba(0,0,0,0.08),
+        inset 0 1px 0 rgba(255,255,255,0.6);
+
+      /* Typography */
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--yoimiya-dark);
+      text-align: center;
+      white-space: normal;
+      word-break: keep-all;       /* 中文按字符边界换行，避免截断词汇 */
+      overflow-wrap: break-word;  /* 超长英文单词兜底换行 */
+
+      /* --- Hidden by default --- */
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+
+      /* Triangle tail — drawn with borders on ::after */
+      /* We use a separate pseudo-element for the tail */
+    }
+
+    /* Triangle tail pointing DOWN toward the character */
+    .speech-bubble::after {
+      content: '';
+      position: absolute;
+      top: 100%;                    /* flush against bubble bottom */
+      left: 50%;
+      transform: translateX(-50%);
+
+      /* CSS triangle pointing down */
+      width: 0;
+      height: 0;
+      border-left:   12px solid transparent;
+      border-right:  12px solid transparent;
+      border-top:    14px solid var(--bubble-border);
+
+      /* The ::after sits on top of the border; need a ::before
+         for the inner white fill to mask the border line */
+    }
+
+    /* Inner triangle (white fill, slightly smaller, sits on top) */
+    .speech-bubble::before {
+      content: '';
+      position: absolute;
+      top: 100%;                     /* same position */
+      left: 50%;
+      transform: translate(-50%, -2px); /* nudge up to cover border */
+      z-index: 1;
+
+      width: 0;
+      height: 0;
+      border-left:   9px solid transparent;
+      border-right:  9px solid transparent;
+      border-top:    11px solid var(--bubble-bg);
+    }
+
+    /* ============================================================
+       .show — Reveal with fade + bounce
+       ============================================================ */
+    .speech-bubble.show {
+      opacity: 1;
+      pointer-events: auto;
+      animation: bubbleBounceIn 0.55s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+    }
+
+    /* Hide animation */
+    .speech-bubble.hide {
+      opacity: 0;
+      pointer-events: none;
+      animation: bubbleFadeOut 0.2s ease forwards;
+    }
+
+    @keyframes bubbleBounceIn {
+      0% {
+        opacity: 0;
+        transform: translateX(-50%) translateY(12px) scale(0.75);
+      }
+      55% {
+        opacity: 1;
+        transform: translateX(-50%) translateY(-6px) scale(1.06);
+      }
+      75% {
+        transform: translateX(-50%) translateY(2px) scale(0.97);
+      }
+      90% {
+        transform: translateX(-50%) translateY(-1px) scale(1.02);
+      }
+      100% {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0) scale(1);
+      }
+    }
+
+    @keyframes bubbleFadeOut {
+      0%   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+      100% { opacity: 0; transform: translateX(-50%) translateY(8px) scale(0.9); }
+    }
+
+    /* ============================================================
+       Character Container
+       ============================================================ */
+    .character-frame {
+      position: relative;
+      width: 110px;
+      height: 110px;
+
+      /* Pixel-art notched corners via clip-path */
+      clip-path: polygon(
+        0   8px, 8px 8px, 8px 0,      /* top-left notch */
+        calc(100% - 8px) 0, calc(100% - 8px) 8px, 100% 8px,  /* top-right */
+        100% calc(100% - 8px), calc(100% - 8px) calc(100% - 8px),
+        calc(100% - 8px) 100%,                                    /* bottom-right */
+        8px 100%, 8px calc(100% - 8px), 0 calc(100% - 8px)       /* bottom-left */
+      );
+
+      /* Warm gradient border via background + padding trick */
+      background: linear-gradient(135deg, var(--yoimiya-orange), var(--yoimiya-gold), var(--yoimiya-red));
+      padding: 4px;
+
+      /* Outer glow */
+      filter: drop-shadow(0 4px 12px rgba(232, 117, 58, 0.5))
+              drop-shadow(0 0 20px rgba(240, 192, 64, 0.3));
+
+      transition: filter 0.3s ease, transform 0.15s ease;
+    }
+
+    /* Subtle scale-down on click for tactile feedback */
+    .character-frame:active {
+      transform: scale(0.93);
+    }
+
+    /* Inner image area */
+    .character-inner {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(180deg, #FFF5E8 0%, #FFE8CC 100%);
+      clip-path: polygon(
+        0   5px, 5px 5px, 5px 0,
+        calc(100% - 5px) 0, calc(100% - 5px) 5px, 100% 5px,
+        100% calc(100% - 5px), calc(100% - 5px) calc(100% - 5px),
+        calc(100% - 5px) 100%,
+        5px 100%, 5px calc(100% - 5px), 0 calc(100% - 5px)
+      );
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Character image */
+    .character-inner img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      image-rendering: pixelated;        /* pixel-art crispness */
+      image-rendering: crisp-edges;
+    }
+
+    /* ============================================================
+       Pixel-art Corner Decorations (4 little diamonds)
+       ============================================================ */
+    .pixel-corner {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      background: var(--yoimiya-gold);
+      z-index: 3;
+      box-shadow: 0 0 6px rgba(240, 192, 64, 0.8);
+      /* Diamond shape */
+      transform: rotate(45deg);
+      border-radius: 1px;
+    }
+    .pixel-corner.tl { top: 0;  left: 0;  }
+    .pixel-corner.tr { top: 0;  right: 0; }
+    .pixel-corner.bl { bottom: 0; left: 0;  }
+    .pixel-corner.br { bottom: 0; right: 0; }
+
+    /* ============================================================
+       Hover glow ring
+       ============================================================ */
+    .glow-ring {
+      position: absolute;
+      inset: -6px;
+      border-radius: inherit;
+      background: transparent;
+      border: 2px solid transparent;
+      transition: border-color 0.35s ease, box-shadow 0.35s ease;
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    .yoimiya-widget:hover .glow-ring {
+      border-color: rgba(240, 192, 64, 0.55);
+      box-shadow:
+        0 0 18px rgba(240, 192, 64, 0.4),
+        0 0 36px rgba(232, 117, 58, 0.25);
+    }
+
+    /* ============================================================
+       Click-hint label
+       ============================================================ */
+    .click-hint {
+      margin-top: 8px;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.45);
+      letter-spacing: 0.06em;
+      transition: color 0.3s ease;
+      text-align: center;
+    }
+
+    .yoimiya-widget:hover .click-hint {
+      color: rgba(240, 192, 64, 0.8);
+    }
+
+    /* ============================================================
+       Sparkle burst on click (CSS-only micro particles)
+       ============================================================ */
+    .sparkle-burst {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .sparkle-burst.active::before,
+    .sparkle-burst.active::after {
+      content: '';
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      background: var(--yoimiya-gold);
+      border-radius: 1px;
+      animation: sparklePop 0.55s ease-out forwards;
+    }
+
+    .sparkle-burst.active::before {
+      animation-delay: 0s;
+    }
+    .sparkle-burst.active::after {
+      animation-delay: 0.08s;
+    }
+
+    @keyframes sparklePop {
+      0%   { transform: translate(0, 0) scale(1);     opacity: 1; }
+      100% { transform: translate(var(--sx), var(--sy)) scale(0); opacity: 0; }
+    }
+
+    /* ============================================================
+       Responsive
+       ============================================================ */
+    @media (max-width: 640px) {
+      .yoimiya-widget {
+        bottom: 20px;
+        right: 16px;
+      }
+
+      .character-frame {
+        width: 88px;
+        height: 88px;
+      }
+
+      .speech-bubble {
+        max-width: 170px;
+        padding: 10px 14px;
+        font-size: 12px;
+        bottom: calc(100% + 16px);
+      }
+
+      .speech-bubble::after {
+        border-left-width: 10px;
+        border-right-width: 10px;
+        border-top-width: 12px;
+      }
+      .speech-bubble::before {
+        border-left-width: 7px;
+        border-right-width: 7px;
+        border-top-width: 9px;
+      }
+    }
+
+    /* ============================================================
+       Decorative background (optional — starfield dots)
+       ============================================================ */
+    .bg-stars {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .bg-stars span {
+      position: absolute;
+      display: block;
+      width: 2px;
+      height: 2px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      animation: twinkle 2.5s ease-in-out infinite;
+    }
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.2; }
+      50%      { opacity: 0.7; }
+    }
+
+    /* ============================================================
+       Electron 桌面模式覆盖样式
+       当 JS 检测到运行在 Electron 中时，会给 <html> 和 <body> 添加
+       .electron-mode 类，触发以下覆盖：
+         - html/body 背景完全透明（消除黑边/白边，露出桌面壁纸）
+         - 挂件从 fixed 定位切换为正常流布局
+         - 挂件整体可鼠标拖拽（-webkit-app-region: drag）
+         - 交互子元素取消拖拽（no-drag），保证点击事件正常工作
+         - 隐藏全屏背景星星（桌面模式不需要）
+       ============================================================ */
+
+    /* ① 根元素透明化 + 点击穿透 */
+    html.electron-mode,
+    body.electron-mode {
+      background: transparent !important;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      pointer-events: none;               /* 透明区域点击穿透到桌面 */
+    }
+
+    body.electron-mode {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      height: 100vh;
+      padding-bottom: 16px;
+    }
+
+    /* ② 挂件容器：恢复正常流 + 接收鼠标事件 */
+    body.electron-mode .yoimiya-widget {
+      position: relative;
+      bottom: auto;
+      right: auto;
+      pointer-events: auto;               /* 挂件区域恢复鼠标响应 */
+    }
+
+    /* ③ 窗口拖动改为 JS 方案（mousedown/move/up）
+       *    不再使用 -webkit-app-region，因为它在 drag 区域会吃掉点击事件，
+       *    导致无法同时支持"点击触发气泡"和"拖拽移动窗口"。
+       *    详见下方 JS 中的 drag 处理逻辑。
+       */
+
+    /* ④ 禁止图片原生拖拽（防止拖到桌面时另存为 GIF） */
+    body.electron-mode .character-inner img {
+      -webkit-user-drag: none;
+    }
+
+    /* ⑤ 去除所有装饰背景 —— 只留 GIF 人物主体 */
+    body.electron-mode .character-frame {
+      background: transparent;          /* 去掉橙金渐变边框 */
+      filter: none;                     /* 去掉 drop-shadow 发光 */
+      clip-path: none;                  /* 去掉像素缺角裁剪 */
+      padding: 0;                       /* 去掉内边距 */
+    }
+
+    body.electron-mode .character-inner {
+      background: transparent;          /* 去掉奶油色填充 */
+      clip-path: none;                  /* 去掉内层缺角裁剪 */
+    }
+
+    body.electron-mode .pixel-corner {
+      display: none;                    /* 去掉四个金色菱形角标 */
+    }
+
+    body.electron-mode .glow-ring {
+      display: none;                    /* 去掉 hover 光环 */
+    }
+
+    body.electron-mode .bg-stars {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 🔍 Electron 桌面模式检测：如果运行在 Electron 中，添加 .electron-mode 类 -->
+  <script>
+    // 给 html 和 body 同时添加类 —— html 的透明化对消除黑边至关重要
+    if (window.electronAPI?.isElectron) {
+      document.documentElement.classList.add('electron-mode');
+      document.body.classList.add('electron-mode');
+    }
+  </script>
+
+  <!-- Subtle background starfield (purely decorative) -->
+  <div class="bg-stars" aria-hidden="true">
+    <span style="top:8%;left:12%;animation-delay:0s"></span>
+    <span style="top:15%;left:78%;animation-delay:0.6s"></span>
+    <span style="top:62%;left:6%;animation-delay:1.2s"></span>
+    <span style="top:48%;left:92%;animation-delay:1.8s"></span>
+    <span style="top:82%;left:22%;animation-delay:0.3s"></span>
+    <span style="top:28%;left:55%;animation-delay:1.5s"></span>
+    <span style="top:72%;left:68%;animation-delay:0.9s"></span>
+    <span style="top:38%;left:35%;animation-delay:2.1s"></span>
+  </div>
+
+  <!-- ============================================================
+       MAIN WIDGET
+       ============================================================ -->
+  <div class="yoimiya-widget" id="yoimiyaWidget" title="点击和宵宫互动吧～">
+
+    <!-- Speech Bubble -->
+    <div class="speech-bubble" id="speechBubble">
+      <span id="bubbleText">想看烟花吗？✨</span>
+    </div>
+
+    <!-- Character Frame -->
+    <div class="character-frame" id="characterFrame">
+      <!-- Inner image area -->
+      <div class="character-inner">
+        <img
+          src="yoimiya.gif"
+          alt="宵宫 - Yoimiya"
+          draggable="false"
+          onerror="this.style.display='none';this.parentElement.innerHTML='<span style=font-size:56px;line-height:1>🎆</span>'"
+        />
+      </div>
+
+      <!-- Pixel corner accents -->
+      <div class="pixel-corner tl"></div>
+      <div class="pixel-corner tr"></div>
+      <div class="pixel-corner bl"></div>
+      <div class="pixel-corner br"></div>
+
+      <!-- Glow ring -->
+      <div class="glow-ring"></div>
+
+      <!-- Sparkle burst -->
+      <div class="sparkle-burst" id="sparkleBurst"></div>
+    </div>
+
+    <!-- Click hint -->
+    <div class="click-hint">· 戳我 ·</div>
+  </div>
+
+  <!-- ============================================================
+       Script — 交互逻辑（Vanilla JS）
+       ============================================================ -->
+  <script>
+    (function () {
+      // ========================================================
+      // 📦 DOM 元素引用
+      // ========================================================
+      const widget     = document.getElementById('yoimiyaWidget');
+      const bubble     = document.getElementById('speechBubble');
+      const bubbleText = document.getElementById('bubbleText');
+      const sparkle    = document.getElementById('sparkleBurst');
+
+      // ========================================================
+      // 🔌 IPC 通信（Electron 桌面模式）
+      // ========================================================
+
+      /**
+       * 初始化 IPC 监听器 —— 仅在 Electron 环境中生效
+       *
+       * 监听的信号：
+       *   ① 'sound-toggled' — 用户在右键菜单中切换了音效开关
+       *   ② 'window-hidden' — 窗口被隐藏（用户手动或全屏自动隐藏）
+       *   ③ 'window-shown'  — 窗口被恢复显示
+       */
+      if (window.electronAPI) {
+        // ① 同步音效开关状态
+        window.electronAPI.getSoundState().then((enabled) => {
+          isSoundEnabled = enabled;
+        });
+
+        // ② 监听主进程的音效切换命令
+        window.electronAPI.onToggleSound((enabled) => {
+          isSoundEnabled = enabled;
+          console.log('🔊 音效已', enabled ? '开启' : '关闭');
+        });
+
+        // ③ 窗口隐藏时暂停音频（节省资源）
+        window.electronAPI.onWindowHidden(() => {
+          if (currentAudio) {
+            currentAudio.pause();
+            currentAudio.currentTime = 0;
+            activeAudioRefs.delete(currentAudio);
+            currentAudio = null;
+          }
+        });
+
+        // ④ 窗口恢复时不做额外操作（用户点击时自然会触发音频）
+        window.electronAPI.onWindowShown(() => {
+          // 预留：可在此处恢复动画等
+        });
+      }
+
+      // ========================================================
+      // 🎀 配置区 —— 修改这里来定制台词和音频
+      // ========================================================
+
+      /**
+       * 宵宫台词数组（8 条温馨、元气的中文台词）
+       *
+       * 如何自定义台词：
+       *   - 直接修改下方数组中的文本即可
+       *   - 数组索引 0~4 与音频文件 voice1.mp3 ~ voice5.mp3 一一对应
+       *   - 可以增减条目，但记得同步调整音频文件的数量
+       */
+      const MESSAGES = [
+        '烟花易逝，人情长存！✨',                                 // 索引 0 → voice1.mp3
+        '风好大，声音都被吹回来啦～🎆',                            // 索引 1 → voice2.mp3
+        '哈哈，看我搓个雪球，咻——💥',                              // 索引 2 → voice3.mp3
+        '『英雄形态』的宵宫姐姐登场！邪恶必散，正义必胜！',           // 索引 3 → voice4.mp3
+        '一起去玩吧！😆',                                         // 索引 4 → voice5.mp3
+      ];
+
+      /**
+       * 音效状态 —— 由主进程右键菜单通过 IPC 控制
+       *
+       * 工作流程：
+       *   ① 页面加载 → 调用 electronAPI.getSoundState() 获取初始值
+       *   ② 用户在右键菜单切换 → 主进程发送 'sound-toggled' IPC 事件
+       *   ③ 渲染进程收到事件 → 更新 isSoundEnabled
+       *
+       * 浏览器兼容：如果不在 Electron 环境（无 electronAPI），
+       * isSoundEnabled 保持 false，音效永不播放。
+       */
+      let isSoundEnabled = true;
+
+      /**
+       * 音频文件路径配置
+       *
+       * 📁 如何准备音频文件：
+       *   1. 在 index.html 同级目录下创建 audio/ 文件夹
+       *   2. 录制每条台词的配音，按以下规则命名：
+       *        MESSAGES[0] 的配音 → audio/voice1.mp3
+       *        MESSAGES[1] 的配音 → audio/voice2.mp3
+       *        ...以此类推（索引 + 1 = 文件名中的数字）
+       *   3. 支持 .mp3 / .ogg / .wav 格式 —— 修改 AUDIO_EXT 即可切换
+       *
+       * 🔇 音效由右键菜单的「开启音效」复选框控制，
+       *    默认关闭，用户需要手动开启。
+       */
+      const AUDIO_BASE_PATH = './audio/voice';        // ← 音频文件路径前缀
+      const AUDIO_EXT       = '.MP3';                 // ← 需与文件名大小写一致（asar 区分大小写）
+
+      /** 气泡自动消失时间（毫秒），默认 4000 = 4 秒 */
+      const AUTO_HIDE_DELAY = 4000;
+
+      // ========================================================
+      // 🎵 音频播放模块
+      // ========================================================
+
+      /** 当前正在播放的 Audio 实例（避免快速连点时多个音频重叠） */
+      let currentAudio = null;
+
+      /**
+       * 活跃音频引用池
+       *
+       * 作用：防止 Chromium/Electron 垃圾回收器在音频播放中途
+       * 错误地清理未挂载到 DOM 的 Audio 对象。
+       * 每段音频播完后从池中移除，用户点击切换时清空旧池。
+       */
+      const activeAudioRefs = new Set();
+
+      /**
+       * 播放与台词索引对应的音频文件
+       *
+       * 映射规则：
+       *   MESSAGES 数组索引 i  →  音频文件 voice{i+1}.mp3
+       *   例如：i=0 → voice1.mp3，i=4 → voice5.mp3
+       *
+       * 容错设计：
+       *   - 如果 isSoundEnabled 为 false，直接跳过
+       *   - 如果音频文件不存在（404），控制台输出警告但不影响页面运行
+       *   - 如果浏览器拦截自动播放，静默处理
+       *   - 新音频播放前会自动停止上一个未播完的音频
+       *
+       * @param {number} messageIndex - MESSAGES 数组的索引（0-based）
+       */
+      function playAudioForMessage(messageIndex) {
+        // 如果未启用音效功能，直接返回
+        if (!isSoundEnabled) return;
+
+        // ---- 停止上一个音频（避免多次点击声音重叠） ----
+        if (currentAudio) {
+          currentAudio.pause();
+          currentAudio.currentTime = 0;
+          activeAudioRefs.delete(currentAudio);   // 从引用池移除
+          currentAudio = null;
+        }
+
+        // ---- 构建音频文件路径（绝对 URL，asar 内也可正确解析） ----
+        const fileNumber = messageIndex + 1;
+        const fileName   = `voice${fileNumber}${AUDIO_EXT}`;
+        const audioPath  = new URL(`./audio/${fileName}`, window.location.href).href;
+
+        try {
+          // ---- 创建 Audio 实例并加入引用池 ----
+          currentAudio = new Audio(audioPath);
+          activeAudioRefs.add(currentAudio);        // 防止 GC 误清理
+
+          // ---- 错误处理：文件不存在或无法解码 ----
+          currentAudio.addEventListener('error', () => {
+            console.warn(
+              `⚠️ 音频文件未找到或无法播放: ${audioPath}\n` +
+              `   请确认：\n` +
+              `   ① 文件确实存在于该路径\n` +
+              `   ② 文件名与台词索引匹配（台词[${messageIndex}] → voice${fileNumber}${AUDIO_EXT}）\n` +
+              `   ③ 如暂无音频，请在右键菜单中关闭「开启音效」`
+            );
+            activeAudioRefs.delete(currentAudio);   // 出错也清理
+            currentAudio = null;
+          });
+
+          // ---- 播放完毕后自动清理引用 ----
+          currentAudio.addEventListener('ended', () => {
+            activeAudioRefs.delete(currentAudio);   // 从引用池移除
+            currentAudio = null;
+          });
+
+          // ---- 开始播放 ----
+          const playPromise = currentAudio.play();
+
+          // play() 返回 Promise；浏览器可能因自动播放策略而 reject
+          if (playPromise !== undefined) {
+            playPromise.catch((err) => {
+              console.warn(
+                `⚠️ 音频播放被浏览器阻止: ${audioPath}\n` +
+                `   原因：${err.message}\n` +
+                `   提示：用户需要先与页面交互（点击一次），浏览器才允许播放音频`
+              );
+              activeAudioRefs.delete(currentAudio);
+              currentAudio = null;
+            });
+          }
+        } catch (err) {
+          // 极端异常（如路径包含非法字符），静默处理
+          console.warn(`⚠️ 音频创建失败: ${audioPath}`, err.message);
+          if (currentAudio) activeAudioRefs.delete(currentAudio);
+          currentAudio = null;
+        }
+      }
+
+      // ========================================================
+      // 🎲 台词随机抽取模块
+      // ========================================================
+
+      /** 记录上一次显示的台词索引，用于避免连续两次抽到同一句 */
+      let lastMessageIndex = -1;
+
+      /**
+       * 从 MESSAGES 数组中随机抽取一条台词
+       *
+       * 去重策略：
+       *   - 如果数组只有 1 条台词，直接返回（无法去重）
+       *   - 如果数组有 2 条或以上，用 do...while 循环跳过上一次的索引
+       *   - 确保用户每次点击都能看到不同的台词
+       *
+       * @returns {{ index: number, text: string }}
+       *   index - 台词在 MESSAGES 中的索引，用于匹配音频
+       *   text  - 台词文本内容
+       */
+      function pickRandomMessage() {
+        let idx;
+
+        if (MESSAGES.length <= 1) {
+          // 只有一条台词，直接返回
+          idx = 0;
+        } else {
+          // 随机抽取，避开上一次的索引
+          do {
+            idx = Math.floor(Math.random() * MESSAGES.length);
+          } while (idx === lastMessageIndex);
+        }
+
+        lastMessageIndex = idx;
+        return { index: idx, text: MESSAGES[idx] };
+      }
+
+      // ========================================================
+      // ✨ 视觉效果模块
+      // ========================================================
+
+      /**
+       * 触发角色周围的火星飞散特效
+       *
+       * 原理：
+       *   通过 CSS 类 .active 触发 @keyframes sparklePop 动画
+       *   每次触发前先移除再添加类，配合强制重排来重置动画
+       *   火星的飞行方向通过 CSS 自定义属性（--sx, --sy）随机化
+       */
+      function triggerSparkle() {
+        // 先移除 active 类，重置动画状态
+        sparkle.classList.remove('active');
+        // 强制浏览器重排（reflow），使 CSS 动画能够重新触发
+        void sparkle.offsetWidth;
+
+        // 随机化火星飞行方向（极坐标 → 直角坐标）
+        const angle = Math.random() * 2 * Math.PI;   // 0 ~ 360°
+        sparkle.style.setProperty('--sx', Math.cos(angle) * 30 + 'px');
+        sparkle.style.setProperty('--sy', Math.sin(angle) * 30 + 'px');
+
+        // 添加 active 类，触发 CSS 动画
+        sparkle.classList.add('active');
+      }
+
+      // ========================================================
+      // 💬 气泡显隐控制模块
+      // ========================================================
+
+      /** 自动隐藏计时器的 ID（用于重置计时） */
+      let hideTimer = null;
+
+      /**
+       * 清除当前的自动隐藏计时器
+       *
+       * 调用场景：
+       *   - 用户在气泡显示期间再次点击 → 需要重置 4 秒倒计时
+       *   - 气泡被手动隐藏 → 避免旧的计时器在隐藏后误触发
+       */
+      function clearAutoHideTimer() {
+        if (hideTimer !== null) {
+          clearTimeout(hideTimer);
+          hideTimer = null;
+        }
+      }
+
+      /**
+       * 启动（或重置）自动隐藏计时器
+       *
+       * 从调用时刻起，AUTO_HIDE_DELAY 毫秒后自动调用 hideBubble()
+       * 每次显示/刷新气泡时都应调用此函数，以确保计时器从头开始
+       */
+      function resetAutoHideTimer() {
+        clearAutoHideTimer();                          // 先清除旧计时器
+        hideTimer = setTimeout(() => {                 // 启动新计时器
+          hideBubble();
+        }, AUTO_HIDE_DELAY);
+      }
+
+      /**
+       * 显示气泡（或刷新气泡内容）
+       *
+       * 完整执行流程：
+       *   ① 随机抽取一句新台词 → 填入气泡
+       *   ② 播放对应的音频文件（如已启用）
+       *   ③ 清除旧计时器，重新开始 4 秒倒计时
+       *   ④ 添加 .show 类，触发弹入动画（bubbleBounceIn）
+       *
+       * 注意：
+       *   - 如果气泡当前已显示，台词和计时器会刷新，弹入动画会重播
+       *   - 如果气泡当前隐藏中，先移除 .hide 状态再添加 .show
+       */
+      function showBubble() {
+        // ① 随机抽取台词
+        const { index, text } = pickRandomMessage();
+        bubbleText.textContent = text;
+
+        // ② 播放对应的音频
+        playAudioForMessage(index);
+
+        // ③ 重置 4 秒自动隐藏计时器
+        resetAutoHideTimer();
+
+        // ④ 显示气泡（先移除隐藏状态，再添加显示状态）
+        bubble.classList.remove('hide');
+
+        // 强制浏览器重排 → 确保弹入动画完整播放（即使气泡已在显示中）
+        void bubble.offsetWidth;
+
+        bubble.classList.add('show');
+
+      }
+
+      /**
+       * 隐藏气泡（只隐藏视觉，不打断语音）
+       *
+       * 执行流程：
+       *   ① 移除 .show 类 → 添加 .hide 类 → 触发 fadeOut 动画
+       *   ② 清除自动隐藏计时器
+       *
+       * 注意：此处故意不停止音频播放。
+       *   语音可能超过 4 秒，气泡消失后音频应继续自然播完。
+       *   只有用户主动点击（→ showBubble → playAudioForMessage）
+       *   才会打断当前语音并切换到下一条。
+       */
+      function hideBubble() {
+        // 触发 CSS 隐藏动画
+        bubble.classList.remove('show');
+        bubble.classList.add('hide');
+
+        // 清除计时器（避免隐藏后计时器再次触发 hideBubble）
+        clearAutoHideTimer();
+
+      }
+
+      // ========================================================
+      // 🖱️ 事件绑定
+      // ========================================================
+
+      /**
+       * 【拖拽 + 点击 统一处理】
+       *
+       * 增量累加 + rAF 批量发送。
+       */
+      {
+        let dragInfo = null;
+        let accDx = 0, accDy = 0;
+        let rafId = null;
+        const DRAG_PX = 4;
+
+        widget.addEventListener('mousedown', (e) => {
+          if (e.button !== 0) return;
+          dragInfo = {
+            screenX: e.screenX,
+            screenY: e.screenY,
+            moved: false,
+          };
+          accDx = 0;
+          accDy = 0;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+          if (!dragInfo) return;
+
+          const dx = e.screenX - dragInfo.screenX;
+          const dy = e.screenY - dragInfo.screenY;
+          dragInfo.screenX = e.screenX;
+          dragInfo.screenY = e.screenY;
+          accDx += dx;
+          accDy += dy;
+
+          if (!dragInfo.moved && (Math.abs(accDx) > DRAG_PX || Math.abs(accDy) > DRAG_PX)) {
+            dragInfo.moved = true;
+          }
+
+          if (dragInfo.moved && window.electronAPI) {
+            if (!rafId) {
+              rafId = requestAnimationFrame(() => {
+                window.electronAPI.moveWindow(
+                  Math.round(accDx),
+                  Math.round(accDy)
+                );
+                accDx = 0;
+                accDy = 0;
+                rafId = null;
+              });
+            }
+          }
+        });
+
+        // 在挂件上松开 → 判断是点击还是拖拽结束
+        widget.addEventListener('mouseup', (e) => {
+          if (!dragInfo) return;
+
+          if (!dragInfo.moved) {
+            // 没有移动 → 纯点击
+            triggerSparkle();
+            showBubble();
+          }
+
+          dragInfo = null;
+        });
+
+        // 在挂件外松开 → 清理拖拽状态 + 关闭气泡
+        document.addEventListener('mouseup', (e) => {
+          if (dragInfo) {
+            // mousedown 发生在挂件内
+            if (!dragInfo.moved && bubble.classList.contains('show')) {
+              if (!widget.contains(e.target)) {
+                hideBubble();        // 在挂件外松开 → 关闭气泡
+              }
+            }
+            dragInfo = null;
+          } else {
+            // 普通点击（mousedown 不在挂件上）→ 关闭气泡
+            if (bubble.classList.contains('show') && !widget.contains(e.target)) {
+              hideBubble();
+            }
+          }
+        });
+
+        // ---- 鼠标穿透切换（Electron 桌面模式） ----
+        // 利用 setIgnoreMouseEvents(true, {forward:true}) 下
+        // mousemove 仍能到达渲染进程的特性，用 mouseenter/leave
+        // 精准切换穿透状态，实现"透明区域点击穿透，挂件区域正常响应"
+        if (window.electronAPI) {
+          widget.addEventListener('mouseenter', () => {
+            window.electronAPI.notifyMouseEnter();
+          });
+          widget.addEventListener('mouseleave', () => {
+            window.electronAPI.notifyMouseLeave();
+          });
+        }
+      }
+
+      // ========================================================
+      // 👋 初次加载：自动弹出欢迎台词
+      // ========================================================
+
+      /**
+       * 页面加载完成后 1.2 秒，自动显示第一条随机台词
+       *
+       * 延迟 1.2 秒的目的：
+       *   - 让页面 CSS 动画（浮游、星空闪烁）先跑起来
+       *   - 避免用户一打开页面就被气泡"突脸"
+       *   - 也给浏览器的自动播放策略一个"用户已访问页面"的信号
+       *
+       * 之后气泡会在 4 秒后自动消失，用户也可以随时点击角色互动。
+       */
+      setTimeout(() => {
+        showBubble();
+      }, 1200);
+
+      // ========================================================
+      // 📝 开发者控制台提示
+      // ========================================================
+      console.log(
+        '🎆  宵宫悬浮挂件已就绪！\n' +
+        '   📍 右下角的宵宫正在等你戳她～\n' +
+        '   💬 气泡 4 秒后自动消失，点击可刷新台词并重置计时\n' +
+        '   🎵 如需启用音频：右键菜单 → 勾选「开启音效」\n' +
+        '   📁 音频路径：audio/voice1.mp3 ~ voice5.mp3\n' +
+        '   🎵 音效默认开启，右键菜单可切换'
+      );
+    })();
+  </script>
+
+</body>
+</html>

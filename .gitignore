@@ -1,0 +1,18 @@
+# 依赖
+node_modules/
+
+# 打包产物
+dist/
+release/
+
+# Claude Code 本地配置
+.claude/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+*.rar
+
+# 环境变量
+.env
+.env.local
