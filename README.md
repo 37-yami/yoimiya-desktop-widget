@@ -125,15 +125,6 @@ const MESSAGES = [
 
 ## 📦 打包
 
-### 生成绿色免安装版
-
-```bash
-# 国内用户使用镜像加速
-ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/" npm run build:dir
-```
-
-产物在 `dist/win-unpacked/`，双击 `YoimiyaWidget.exe` 即可运行（整个文件夹约 252 MB，可随意复制到任何位置）。
-
 ### 分发给其他人
 
 将 `dist/win-unpacked/` 整个文件夹压缩为 zip 或 rar，发给对方解压即可使用，无需安装任何依赖。
@@ -177,14 +168,7 @@ ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/" npm run build:dir
 
 ## ❓ FAQ
 
-### 为什么 git 中没有 `node_modules` 和 `dist`？
-
-| 文件夹 | 大小 | 为什么不提交 |
-|---|---|---|
-| `node_modules/` | ~250 MB | 体积巨大；`npm install` 即可根据 `package.json` + `package-lock.json` 精确复现 |
-| `dist/` | ~250 MB | 包含 Electron 运行时，可随时用 `npm run build:dir` 重新生成 |
-
-### 别人克隆后如何运行？
+### 克隆后如何运行？
 
 ```bash
 git clone <仓库地址>
