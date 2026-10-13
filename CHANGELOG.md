@@ -15,6 +15,7 @@
 **✨ 新增**
 
 - `npm run build:green` 一键产出绿色包 zip（win-unpacked + 相对路径启动器 + 文件夹内快捷方式生成器），解压后双击 `run-widget.cmd` 即可运行，无需安装
+- 源码启动快捷方式：`scripts\create-source-shortcut.cmd` 在项目根目录生成指向 `electron.exe` 的「宵宫挂件.lnk」，git clone + `npm install` 后双击即用，无需下载任何 exe
 - 自定义应用图标：取 `yoimiya.gif` 静态帧生成 `build/icon.ico`，exe / 窗口 / 快捷方式不再是默认 Electron 图标
 - 打包脚本内置 npmmirror 镜像回退，GitHub 不可达时也能正常构建
 - 压缩改用 .NET ZipFile，规避 Compress-Archive 在部分环境下的路径解析问题

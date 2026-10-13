@@ -42,10 +42,11 @@ yoimiya-desktop-widget/
 │   ├── voice3.MP3             ← "哈哈，看我搓个雪球，咻——💥" (94 KB)
 │   ├── voice4.MP3             ← "『英雄形态』的宵宫姐姐登场！邪恶必散，正义必胜！" (126 KB)
 │   └── voice5.MP3             ← "一起去玩吧！😆" (53 KB)
-├── scripts/                   ← 绿色包打包脚本（npm run build:green 使用）
-│   ├── pack-green.ps1         ← 一键构建绿色包（win-unpacked + 启动器 → zip）
-│   ├── run-widget.cmd         ← 相对路径启动器（解压后双击即运行）
-│   └── create-shortcut.cmd    ← 快捷方式生成器（在文件夹内生成「宵宫挂件.lnk」）
+├── scripts/                   ← 脚本（打包 / 启动器 / 快捷方式生成）
+│   ├── pack-green.ps1         ← 一键构建绿色包（win-unpacked + 启动器 → zip，npm run build:green）
+│   ├── run-widget.cmd         ← 相对路径启动器（绿色包内双击即运行）
+│   ├── create-shortcut.cmd    ← 快捷方式生成器（绿色包内生成指向 exe 的「宵宫挂件.lnk」）
+│   └── create-source-shortcut.cmd ← 快捷方式生成器（项目根目录生成指向 electron.exe 的源码启动 lnk）
 ├── build/
 │   └── icon.ico               ← 应用图标（取自 yoimiya.gif 静态帧，可自行替换）
 ├── .gitignore
@@ -82,6 +83,14 @@ npm start
 > ⚠️ 如果从 VSCode 内置终端启动失败（报 `Cannot read properties of undefined`）：  
 > VSCode 终端默认设置了 `ELECTRON_RUN_AS_NODE=1`，导致 Electron 退化为纯 Node.js。  
 > 解决方法：使用 Windows 命令提示符或 PowerShell，或在 VSCode 中执行 `npm run start:win`。
+
+### 创建快捷方式（源码启动，免打包）
+
+`npm install` 完成后，双击运行一次 `scripts\create-source-shortcut.cmd`：
+
+- 在**项目根目录**生成快捷方式 **「宵宫挂件.lnk」**
+- 双击它即可启动挂件——直接调用 `electron.exe`，**无需打包、无控制台窗口闪烁、不依赖任何 exe 下载**
+- 删除 `node_modules` 后快捷方式失效，重新 `npm install` + 再跑一次脚本即可
 
 ### 免安装使用（普通用户推荐）
 
