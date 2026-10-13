@@ -48,6 +48,17 @@ let fullscreenCounter     = 0;
 const FULLSCREEN_THRESHOLD = 2;      // 连续检测到全屏 N 次后才触发
 let fullscreenPollTimer   = null;
 
+// 全屏隐藏是否正在生效（状态标记，避免每轮轮询重复设置窗口属性）
+let fullscreenHidden       = false;
+// 全屏隐藏期间锁定鼠标穿透 —— 屏蔽渲染进程的穿透切换请求，
+// 防止"隐形窗口"仍然可交互（吞掉全屏应用的点击、误触台词语音）
+let mousePassthroughLocked = false;
+
+// 拖拽状态：主进程用屏幕绝对坐标（getCursorScreenPoint）计算增量。
+// 渲染进程的 e.screenX 与主进程窗口坐标在非 100% DPI 缩放下
+// 单位可能不一致（Electron 已知问题），在主进程内部计算可完全规避。
+let dragState = null;   // { startCursor: {x, y}, startWindow: [x, y] }
+
 // ============================================================
 // 🎨 托盘图标（16×16 橙色方块，匹配宵宫配色 #E8753A）
 // ============================================================
@@ -80,8 +91,15 @@ function buildContextMenu() {
           startFullscreenPolling();
         } else {
           stopFullscreenPolling();
-          // 关闭全屏隐藏时，立即恢复窗口可见性+置顶
+          // 关闭全屏隐藏时，立即恢复窗口可见性+置顶+穿透检测模式
+          // （若正处于全屏隐藏状态，穿透被锁定为"完全忽略"，
+          //   必须同步解锁，否则挂件可见但无法交互）
           if (!hiddenManually && mainWindow && !mainWindow.isDestroyed()) {
+            if (fullscreenHidden) {
+              fullscreenHidden = false;
+              mousePassthroughLocked = false;
+              mainWindow.setIgnoreMouseEvents(true, { forward: true });
+            }
             mainWindow.setOpacity(1);
             if (alwaysOnTop) mainWindow.setAlwaysOnTop(true, 'screen-saver');
           }
@@ -93,6 +111,12 @@ function buildContextMenu() {
       label: '👁️ 暂时隐藏（托盘恢复）',
       click: () => {
         hideWindowToTray();
+      },
+    },
+    {
+      label: '📍 回到默认位置（右下角）',
+      click: () => {
+        resetWidgetPosition();
       },
     },
     { type: 'separator' },
@@ -140,26 +164,30 @@ function buildContextMenu() {
 // ============================================================
 
 /**
- * 检测是否有应用占据全屏。
+ * 检测挂件所在显示器是否有应用占据全屏。
  *
- * 原理：比较每台显示器的物理分辨率与可用工作区大小。
+ * 原理：比较该显示器的物理分辨率与可用工作区大小。
  * 全屏应用会覆盖 Windows 任务栏 → workAreaSize ≈ size。
  * 阈值 10px：足够窄的任务栏也能被检测到。
+ *
+ * ⚠️ 只检测挂件所在的显示器（而非所有显示器）：
+ *   多显示器下若系统设置"任务栏仅主屏显示"，副屏的
+ *   workArea 恒等于 size，检测所有屏幕会永久误判为全屏，
+ *   导致挂件永远隐藏不可见。
  *
  * 注意：如果系统设置了"自动隐藏任务栏"，workArea 始终等于 size，
  * 此检测会一直返回 true。此时请用右键菜单"暂时隐藏"手动控制。
  */
 function isFullscreenAppActive() {
   try {
-    const displays = screen.getAllDisplays();
-    for (const display of displays) {
-      const { width: sw, height: sh } = display.size;
-      const { width: ww, height: wh } = display.workAreaSize;
-      // 阈值 10px —— 任务栏最小高度约 22px（小图标模式），
-      // 全屏应用覆盖任务栏后 workArea 会趋近于 size
-      if ((sh - wh < 10) && (sw - ww < 10)) {
-        return true;
-      }
+    if (!mainWindow || mainWindow.isDestroyed()) return false;
+    const display = screen.getDisplayMatching(mainWindow.getBounds());
+    const { width: sw, height: sh } = display.size;
+    const { width: ww, height: wh } = display.workAreaSize;
+    // 阈值 10px —— 任务栏最小高度约 22px（小图标模式），
+    // 全屏应用覆盖任务栏后 workArea 会趋近于 size
+    if ((sh - wh < 10) && (sw - ww < 10)) {
+      return true;
     }
     return false;
   } catch (_) {
@@ -188,16 +216,26 @@ function startFullscreenPolling() {
       fullscreenCounter = Math.max(fullscreenCounter - 2, 0);
     }
 
-    // 全屏时降级：取消置顶 + 完全透明
+    // 状态切换只做一次（fullscreenHidden 标记保证幂等）
     try {
-      if (fullscreenCounter >= FULLSCREEN_THRESHOLD && !hiddenManually) {
+      // 全屏时降级：取消置顶 + 完全透明 + 完全不可交互
+      // 拖拽进行中（dragState 非空）则跳过本轮，
+      // 避免拖拽中途切断鼠标捕获导致 mouseup 丢失
+      if (fullscreenCounter >= FULLSCREEN_THRESHOLD && !hiddenManually
+          && !fullscreenHidden && !dragState) {
+        fullscreenHidden = true;
+        mousePassthroughLocked = true;         // 🔒 锁定：屏蔽渲染进程的穿透切换
         mainWindow.setAlwaysOnTop(false);
         mainWindow.setOpacity(0);
+        mainWindow.setIgnoreMouseEvents(true); // 不带 forward：隐形期间不接收任何鼠标事件
       }
 
-      // 全屏结束：恢复置顶 + 恢复可见
-      if (fullscreenCounter === 0 && !hiddenManually) {
+      // 全屏结束：恢复可见 + 恢复穿透检测模式（forward）
+      if (fullscreenCounter === 0 && !hiddenManually && fullscreenHidden) {
+        fullscreenHidden = false;
+        mousePassthroughLocked = false;
         mainWindow.setOpacity(1);
+        mainWindow.setIgnoreMouseEvents(true, { forward: true });
         if (alwaysOnTop) {
           mainWindow.setAlwaysOnTop(true, 'screen-saver');
         }
@@ -214,6 +252,38 @@ function stopFullscreenPolling() {
     fullscreenPollTimer = null;
   }
   fullscreenCounter = 0;
+}
+
+// ============================================================
+// 📐 窗口位置工具（拖拽边界钳制 + 恢复默认位置）
+// ============================================================
+
+/**
+ * 将窗口坐标钳制到最近的显示器工作区内。
+ *
+ * 作用：
+ *   - 防止拖拽把挂件甩出屏幕外导致"丢失"
+ *   - getDisplayMatching 会跟随窗口位置自动切换显示器，
+ *     因此跨显示器拖拽仍然畅通无阻
+ */
+function clampToWorkArea(x, y) {
+  const display = screen.getDisplayMatching({
+    x, y, width: WIDGET_WIDTH, height: WIDGET_HEIGHT,
+  });
+  const wa = display.workArea;
+  const nx = Math.min(Math.max(x, wa.x), wa.x + wa.width  - WIDGET_WIDTH);
+  const ny = Math.min(Math.max(y, wa.y), wa.y + wa.height - WIDGET_HEIGHT);
+  return [Math.round(nx), Math.round(ny)];
+}
+
+/** 将挂件重置到主显示器右下角默认位置（挂件"丢失"时的找回手段） */
+function resetWidgetPosition() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const { width: sw, height: sh } = screen.getPrimaryDisplay().workArea;
+  mainWindow.setPosition(
+    sw - WIDGET_WIDTH  - EDGE_RIGHT,
+    sh - WIDGET_HEIGHT - EDGE_BOTTOM
+  );
 }
 
 // ============================================================
@@ -239,6 +309,13 @@ function createTray() {
         label: '👁️ 显示窗口',
         click: () => showWindowFromTray(),
       },
+      {
+        label: '📍 回到默认位置（右下角）',
+        click: () => {
+          showWindowFromTray();
+          resetWidgetPosition();
+        },
+      },
       { type: 'separator' },
       {
         label: '❌ 关闭挂件',
@@ -255,6 +332,8 @@ function createTray() {
 function hideWindowToTray() {
   if (mainWindow && !mainWindow.isDestroyed()) {
     hiddenManually = true;
+    // 若隐藏时拖拽尚未结束，清理主进程拖拽状态
+    dragState = null;
     mainWindow.hide();
     // 通知渲染进程（可暂停动画等，节省资源）
     mainWindow.webContents.send('window-hidden');
@@ -264,9 +343,13 @@ function hideWindowToTray() {
 function showWindowFromTray() {
   hiddenManually = false;
   if (mainWindow && !mainWindow.isDestroyed()) {
+    dragState = null;
+    fullscreenHidden = false;
+    mousePassthroughLocked = false;
     mainWindow.show();
-    // 同时退出全屏隐藏状态（恢复透明度+置顶）
+    // 同时退出全屏隐藏状态（恢复透明度+置顶+穿透检测模式）
     mainWindow.setOpacity(1);
+    mainWindow.setIgnoreMouseEvents(true, { forward: true });
     if (alwaysOnTop) {
       mainWindow.setAlwaysOnTop(true, 'screen-saver');
     }
@@ -383,9 +466,13 @@ app.on('window-all-closed', () => {
   // 真正的退出通过右键菜单"关闭挂件"触发
 });
 
-// 确保应用最终能退出
+// 确保应用最终能退出（同时销毁托盘，避免 Windows 托盘图标残留）
 app.on('before-quit', () => {
   stopFullscreenPolling();
+  if (tray) {
+    tray.destroy();
+    tray = null;
+  }
 });
 
 // ============================================================
@@ -397,43 +484,50 @@ ipcMain.handle('get-sound-state', () => {
   return soundEnabled;
 });
 
-// 渲染进程查询全屏隐藏开关状态
-ipcMain.handle('get-auto-hide-state', () => {
-  return autoHideOnFullscreen;
+// ============================================================
+// 🖱️ 拖拽移动窗口（主进程绝对坐标方案）
+//
+// 渲染进程负责判定拖拽意图（阈值 + rAF 节流），只发送三条信号：
+//   drag-start → 主进程记录「光标起点 + 窗口起点」
+//   drag-move  → 主进程用 getCursorScreenPoint() 计算绝对增量并移动
+//   drag-end   → 清理状态
+//
+// 为什么不在渲染进程算 dx/dy？
+//   e.screenX 与主进程窗口坐标在非 100% DPI 缩放下单位可能不一致，
+//   会导致挂件移动速度与光标不同步；主进程内部计算则天然一致。
+// ============================================================
+ipcMain.on('drag-start', () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mousePassthroughLocked || hiddenManually) return;
+  dragState = {
+    startCursor: screen.getCursorScreenPoint(),
+    startWindow: mainWindow.getPosition(),
+  };
 });
 
-// 渲染进程主动请求切换音效
-ipcMain.on('request-toggle-sound', (event) => {
-  soundEnabled = !soundEnabled;
-  event.reply('sound-toggled', soundEnabled);
+ipcMain.on('drag-move', () => {
+  if (!dragState || !mainWindow || mainWindow.isDestroyed()) return;
+  const cursor = screen.getCursorScreenPoint();
+  const x = dragState.startWindow[0] + (cursor.x - dragState.startCursor.x);
+  const y = dragState.startWindow[1] + (cursor.y - dragState.startCursor.y);
+  // 钳制到显示器工作区内，防止拖出屏幕导致挂件"丢失"
+  mainWindow.setPosition(...clampToWorkArea(x, y));
 });
 
-// 获取挂件窗口边界（预留）
-ipcMain.handle('get-widget-bounds', () => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    return mainWindow.getBounds();
-  }
-  return null;
-});
-
-// 渲染进程拖拽 → 移动窗口（增量，渲染进程累加+rAF节流）
-ipcMain.on('move-window', (_event, { dx, dy }) => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    const [x, y] = mainWindow.getPosition();
-    mainWindow.setPosition(x + Math.round(dx), y + Math.round(dy));
-  }
+ipcMain.on('drag-end', () => {
+  dragState = null;
 });
 
 // 鼠标进入挂件区域 → 关闭穿透，正常接收点击
 ipcMain.on('mouse-enter-widget', () => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
+  if (mainWindow && !mainWindow.isDestroyed() && !mousePassthroughLocked) {
     mainWindow.setIgnoreMouseEvents(false);
   }
 });
 
 // 鼠标离开挂件区域 → 开启穿透，透明区域不拦截桌面点击
 ipcMain.on('mouse-leave-widget', () => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
+  if (mainWindow && !mainWindow.isDestroyed() && !mousePassthroughLocked) {
     mainWindow.setIgnoreMouseEvents(true, { forward: true });
   }
 });

@@ -903,97 +903,161 @@
       /**
        * 【拖拽 + 点击 统一处理】
        *
-       * 增量累加 + rAF 批量发送。
+       * 架构：渲染进程判定意图，主进程执行移动。
+       *   - mousedown 记录起点，位移超过 DRAG_PX 才判定为拖拽
+       *   - 拖拽增量由主进程用 getCursorScreenPoint() 绝对坐标计算，
+       *     规避高 DPI 缩放下 e.screenX 与窗口坐标单位不一致的问题，
+       *     同时天然消除逐帧取整的亚像素累积丢失
+       *   - 按住鼠标期间（dragInfo 非空）锁定穿透为「关闭」：
+       *     mouseleave 不再恢复穿透 → 操作系统鼠标捕获生效，
+       *     光标跑出窗口外也能收到 mouseup
+       *   - 兜底：mouseup 因 Alt-Tab / 右键菜单等原因丢失时，
+       *     mousemove 中检测 e.buttons 左键位为 0 → 主动结束拖拽
+       *
+       * 🐛 本方案修复的三个历史 bug：
+       *   ① 快速拖动后松开鼠标，挂件"粘"在光标上继续跟随
+       *      （穿透 forward 模式只转发 mousemove 不转发 mouseup，
+       *        导致 mouseup 丢失、拖拽状态残留）
+       *   ② 125%/150% DPI 缩放下挂件移动速度与光标不同步
+       *   ③ 慢速拖动时小数位移被逐帧取整归零吃掉
        */
-      {
-        let dragInfo = null;
-        let accDx = 0, accDy = 0;
-        let rafId = null;
-        const DRAG_PX = 4;
+      let dragInfo = null;    // null = 空闲；否则 { startX, startY, moved }
+      let rafId    = null;
+      const DRAG_PX = 4;
 
-        widget.addEventListener('mousedown', (e) => {
-          if (e.button !== 0) return;
-          dragInfo = {
-            screenX: e.screenX,
-            screenY: e.screenY,
-            moved: false,
-          };
-          accDx = 0;
-          accDy = 0;
-        });
+      /** 判断坐标点是否在挂件可视区域内（getBoundingClientRect 含 float 动画偏移） */
+      function isPointOverWidget(clientX, clientY) {
+        const r = widget.getBoundingClientRect();
+        return clientX >= r.left && clientX <= r.right
+            && clientY >= r.top  && clientY <= r.bottom;
+      }
 
-        document.addEventListener('mousemove', (e) => {
-          if (!dragInfo) return;
+      function cancelDragFrame() {
+        if (rafId !== null) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+      }
 
-          const dx = e.screenX - dragInfo.screenX;
-          const dy = e.screenY - dragInfo.screenY;
-          dragInfo.screenX = e.screenX;
-          dragInfo.screenY = e.screenY;
-          accDx += dx;
-          accDy += dy;
+      /**
+       * 结束拖拽，并按光标实际位置恢复鼠标穿透状态。
+       *
+       * 按住期间穿透被锁定为关闭；结束时无论是否发生过拖拽，
+       * 都按光标当前位置发送 enter/leave，避免穿透卡死在"关闭"
+       * （否则透明窗口区域会拦截桌面点击）。
+       */
+      function endDrag(e) {
+        if (!dragInfo) return;
+        const wasMoved = dragInfo.moved;
+        dragInfo = null;
+        cancelDragFrame();
 
-          if (!dragInfo.moved && (Math.abs(accDx) > DRAG_PX || Math.abs(accDy) > DRAG_PX)) {
+        if (!window.electronAPI) return;
+        if (wasMoved) {
+          window.electronAPI.dragWindowEnd();
+        }
+        if (isPointOverWidget(e.clientX, e.clientY)) {
+          window.electronAPI.notifyMouseEnter();
+        } else {
+          window.electronAPI.notifyMouseLeave();
+        }
+      }
+
+      /** 强制清理本地拖拽状态（窗口被隐藏等场景，不发送恢复消息） */
+      function forceCancelDrag() {
+        dragInfo = null;
+        cancelDragFrame();
+      }
+
+      widget.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();   // 防止原生拖拽/文字选中干扰
+        dragInfo = {
+          startX: e.screenX,
+          startY: e.screenY,
+          moved:  false,
+        };
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!dragInfo) return;
+
+        // 🛡 兜底：左键已松开但 mouseup 丢失（Alt-Tab / 菜单弹出等）。
+        // 转发的 mousemove 携带按键状态，据此主动结束拖拽
+        if ((e.buttons & 1) === 0) {
+          endDrag(e);
+          return;
+        }
+
+        // 未达到拖拽阈值 → 还不算拖拽
+        if (!dragInfo.moved) {
+          if (Math.abs(e.screenX - dragInfo.startX) > DRAG_PX ||
+              Math.abs(e.screenY - dragInfo.startY) > DRAG_PX) {
             dragInfo.moved = true;
-          }
-
-          if (dragInfo.moved && window.electronAPI) {
-            if (!rafId) {
-              rafId = requestAnimationFrame(() => {
-                window.electronAPI.moveWindow(
-                  Math.round(accDx),
-                  Math.round(accDy)
-                );
-                accDx = 0;
-                accDy = 0;
-                rafId = null;
-              });
-            }
-          }
-        });
-
-        // 在挂件上松开 → 判断是点击还是拖拽结束
-        widget.addEventListener('mouseup', (e) => {
-          if (!dragInfo) return;
-
-          if (!dragInfo.moved) {
-            // 没有移动 → 纯点击
-            triggerSparkle();
-            showBubble();
-          }
-
-          dragInfo = null;
-        });
-
-        // 在挂件外松开 → 清理拖拽状态 + 关闭气泡
-        document.addEventListener('mouseup', (e) => {
-          if (dragInfo) {
-            // mousedown 发生在挂件内
-            if (!dragInfo.moved && bubble.classList.contains('show')) {
-              if (!widget.contains(e.target)) {
-                hideBubble();        // 在挂件外松开 → 关闭气泡
-              }
-            }
-            dragInfo = null;
+            window.electronAPI?.dragWindowStart();
           } else {
-            // 普通点击（mousedown 不在挂件上）→ 关闭气泡
-            if (bubble.classList.contains('show') && !widget.contains(e.target)) {
-              hideBubble();
-            }
+            return;
           }
-        });
+        }
 
-        // ---- 鼠标穿透切换（Electron 桌面模式） ----
-        // 利用 setIgnoreMouseEvents(true, {forward:true}) 下
-        // mousemove 仍能到达渲染进程的特性，用 mouseenter/leave
-        // 精准切换穿透状态，实现"透明区域点击穿透，挂件区域正常响应"
-        if (window.electronAPI) {
-          widget.addEventListener('mouseenter', () => {
-            window.electronAPI.notifyMouseEnter();
-          });
-          widget.addEventListener('mouseleave', () => {
-            window.electronAPI.notifyMouseLeave();
+        // rAF 节流：每帧最多通知一次主进程读取光标位置
+        if (rafId === null) {
+          rafId = requestAnimationFrame(() => {
+            rafId = null;
+            window.electronAPI?.dragWindowMove();
           });
         }
+      });
+
+      // 在挂件上松开 → 未移动 = 纯点击；移动过 = 拖拽结束
+      widget.addEventListener('mouseup', (e) => {
+        if (!dragInfo) return;
+
+        if (!dragInfo.moved) {
+          // 没有移动 → 纯点击
+          triggerSparkle();
+          showBubble();
+        }
+
+        endDrag(e);
+      });
+
+      // 在挂件外松开 → 清理拖拽状态 + 关闭气泡
+      document.addEventListener('mouseup', (e) => {
+        if (dragInfo) {
+          // mousedown 发生在挂件内
+          if (!dragInfo.moved && bubble.classList.contains('show')) {
+            if (!widget.contains(e.target)) {
+              hideBubble();        // 在挂件外松开 → 关闭气泡
+            }
+          }
+          endDrag(e);
+        } else {
+          // 普通点击（mousedown 不在挂件上）→ 关闭气泡
+          if (bubble.classList.contains('show') && !widget.contains(e.target)) {
+            hideBubble();
+          }
+        }
+      });
+
+      // ---- 鼠标穿透切换（Electron 桌面模式） ----
+      // 默认穿透开启（forward:true），mouseenter/mouseleave 精准切换；
+      // 关键：按住鼠标期间（dragInfo 非空）锁定穿透为关闭，
+      // 保证 mouseup 一定能送达 —— 这是修复"拖拽残留"bug 的核心
+      if (window.electronAPI) {
+        widget.addEventListener('mouseenter', () => {
+          window.electronAPI.notifyMouseEnter();
+        });
+        widget.addEventListener('mouseleave', () => {
+          if (dragInfo) return;   // 按下/拖拽进行中，不恢复穿透
+          window.electronAPI.notifyMouseLeave();
+        });
+
+        // 窗口被隐藏（托盘/全屏）时强制清理拖拽状态，
+        // 防止恢复显示后残留一个"幽灵拖拽"
+        window.electronAPI.onWindowHidden(() => {
+          forceCancelDrag();
+        });
       }
 
       // ========================================================

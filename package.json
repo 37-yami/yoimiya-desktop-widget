@@ -1,6 +1,6 @@
 {
   "name": "yoimiya-desktop-widget",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "宵宫桌面悬浮挂件 — Yoimiya Desktop Widget",
   "main": "main.js",
   "scripts": {
@@ -9,7 +9,8 @@
     "dev": "electron . --dev",
     "dev:win": "set ELECTRON_RUN_AS_NODE= && electron . --dev",
     "build": "electron-builder --win portable",
-    "build:dir": "electron-builder --win portable --dir"
+    "build:dir": "electron-builder --win --dir",
+    "build:green": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/pack-green.ps1"
   },
   "license": "MIT",
   "devDependencies": {
@@ -28,10 +29,10 @@
       "yoimiya-widget.html",
       "yoimiya.gif",
       "tray-icon.png",
-      "audio/**",
-      "node_modules/**"
+      "audio/**"
     ],
     "win": {
+      "icon": "build/icon.ico",
       "target": "portable"
     },
     "portable": {

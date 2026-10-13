@@ -7,6 +7,8 @@
  *   ③ onWindowHidden() — 窗口被隐藏通知
  *   ④ onWindowShown()  — 窗口被恢复通知
  *   ⑤ getSoundState()  — 查询初始音效状态
+ *   ⑥ dragWindow*()    — 窗口拖拽（start/move/end 三段式）
+ *   ⑦ notifyMouse*()   — 鼠标穿透状态切换
  */
 
 const { contextBridge, ipcRenderer } = require('electron');
@@ -31,12 +33,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ---- 查询初始状态（渲染进程主动调用） ----
   getSoundState: () => ipcRenderer.invoke('get-sound-state'),
-  getAutoHideState: () => ipcRenderer.invoke('get-auto-hide-state'),
 
-  // ---- 窗口拖动（增量累加 + rAF 批量发送） ----
-  moveWindow: (dx, dy) => ipcRenderer.send('move-window', { dx, dy }),
+  // ---- 窗口拖动（主进程绝对坐标 + rAF 节流） ----
+  // start：主进程记录光标起点+窗口起点
+  // move ：主进程用 getCursorScreenPoint() 计算增量并移动窗口
+  // end  ：拖拽结束，清理主进程状态
+  dragWindowStart: () => ipcRenderer.send('drag-start'),
+  dragWindowMove:  () => ipcRenderer.send('drag-move'),
+  dragWindowEnd:   () => ipcRenderer.send('drag-end'),
 
-  // ---- 鼠标穿透切换（事件驱动，无延迟） ----
+  // ---- 鼠标穿透切换（事件驱动，无延迟；全屏隐藏期间主进程会忽略） ----
   notifyMouseEnter: () => ipcRenderer.send('mouse-enter-widget'),
   notifyMouseLeave: () => ipcRenderer.send('mouse-leave-widget'),
 });

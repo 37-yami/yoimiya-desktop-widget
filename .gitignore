@@ -12,6 +12,7 @@ release/
 .DS_Store
 Thumbs.db
 *.rar
+*.lnk
 
 # 环境变量
 .env
