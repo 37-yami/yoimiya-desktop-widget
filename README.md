@@ -49,6 +49,7 @@ yoimiya-desktop-widget/
 ├── build/
 │   └── icon.ico               ← 应用图标（取自 yoimiya.gif 静态帧，可自行替换）
 ├── .gitignore
+├── CHANGELOG.md               ← 更新日志
 └── README.md
 ```
 
@@ -81,6 +82,25 @@ npm start
 > ⚠️ 如果从 VSCode 内置终端启动失败（报 `Cannot read properties of undefined`）：  
 > VSCode 终端默认设置了 `ELECTRON_RUN_AS_NODE=1`，导致 Electron 退化为纯 Node.js。  
 > 解决方法：使用 Windows 命令提示符或 PowerShell，或在 VSCode 中执行 `npm run start:win`。
+
+### 免安装使用（普通用户推荐）
+
+从 [Releases](https://github.com/37-yami/yoimiya-desktop-widget/releases) 下载 `YoimiyaWidget-green-vX.Y.Z.zip`，**解压到任意文件夹**后，两种启动方式任选：
+
+| 方式 | 操作 |
+|---|---|
+| 直接启动 | 双击文件夹内的 `run-widget.cmd` → 挂件立即出现（相对路径，文件夹搬到哪都能用） |
+| 快捷方式启动（推荐） | 见下方说明 |
+
+### 如何用快捷方式启动
+
+1. 解压绿色包后，双击运行一次 `create-shortcut.cmd`
+2. 脚本会在**同一文件夹内**生成快捷方式 **「宵宫挂件.lnk」**（带应用图标，指向本文件夹内的 `win-unpacked\YoimiyaWidget.exe`）
+3. 之后**双击「宵宫挂件.lnk」**即可启动挂件 ✅
+
+> 💡 注意事项：
+> - 整个文件夹移动位置后，快捷方式会失效（.lnk 记录绝对路径）——重新运行一次 `create-shortcut.cmd` 即可刷新
+> - 为什么不预置好 .lnk？Windows 快捷方式记录的是绝对路径，压缩包解压到别人电脑的路径不可预知，预置必定失效，故采用「相对路径启动器 + 用户侧快捷方式生成脚本」的组合
 
 ### 操作说明
 
@@ -126,54 +146,9 @@ const MESSAGES = [
 
 ### 替换角色图片
 
-将新的 GIF/PNG 命名为 `yoimiya.gif`，替换项目根目录下的原文件即可。
+将新的 GIF/PNG 命名为 `yoimiya.gif`，替换项目根目录下的原文件即可（建议使用自带透明背景的素材，观感最佳）。
 
 > 如需同步更换应用图标：用 GIF 任一帧（建议选完整姿势帧）制作多尺寸 ico（16/32/48/64/128/256）覆盖 `build/icon.ico`，重新打包后 exe / 快捷方式即为新图标。
-
----
-
-## 📦 打包
-
-### 方式一：绿色免安装包（推荐分发）
-
-```bash
-npm run build:green
-```
-
-一键产出 `dist/YoimiyaWidget-green-vX.Y.Z.zip`，包含：
-
-```
-YoimiyaWidget-green-vX.Y.Z.zip
-├── win-unpacked/                  ← 应用本体（绿色目录，无需安装）
-│   └── YoimiyaWidget.exe
-├── run-widget.cmd                 ← 启动器（相对路径，解压到哪里都能用）
-└── create-shortcut.cmd            ← 快捷方式生成器（在解压文件夹内生成 .lnk）
-```
-
-**给使用者：**
-
-1. 把 zip 发给对方（或上传 GitHub Release）
-2. 对方解压到**任意目录**
-3. 两种用法任选：
-   - 双击 `run-widget.cmd` 直接运行（零前置步骤，启动器使用相对路径，整个文件夹搬到哪都能用）
-   - 或先运行一次 `create-shortcut.cmd`，在**同一文件夹内**生成快捷方式「宵宫挂件.lnk」，之后双击它启动（有正式的应用图标，观感更像原生程序）
-
-> 💡 为什么不直接在 zip 里预置 .lnk？  
-> Windows 快捷方式记录的是**绝对路径**，且系统 API 保存相对路径时也会强制转成绝对路径（已实测）。压缩包解压到别人电脑的路径不可预知，预置的 .lnk 必定失效。所以采用「相对路径启动器 + 用户侧快捷方式生成脚本」的组合。文件夹整体移动后，重新运行一次 `create-shortcut.cmd` 即可刷新快捷方式。
-
-### 方式二：单文件 portable exe
-
-```bash
-npm run build
-```
-
-产出 `dist/YoimiyaWidget.exe` 单文件。缺点：每次启动要解压到临时目录，启动明显更慢，一般不推荐。
-
-### 只想构建不打包
-
-```bash
-npm run build:dir    # 只产出 dist/win-unpacked/ 文件夹
-```
 
 ---
 
@@ -250,33 +225,6 @@ v1.1.0 起拖拽已自动限制在屏幕工作区内，正常情况下不会再�
 
 - 确认 zip 已**完整解压**（不要在压缩软件里直接双击运行）
 - 部分杀毒软件/Defender 可能拦截未签名的 Electron 程序，请添加信任后重试
-
----
-
-## 📜 更新日志
-
-### v1.1.0
-
-**🐛 Bug 修复**
-
-- **拖拽残留**：快速拖动后在窗口边缘松开鼠标，挂件会"粘"在光标上继续跟随。根因是穿透 forward 模式只转发 mousemove 不转发 mouseup；现按住期间锁定穿透保证 mouseup 送达，并增加 `e.buttons` 兜底检测（覆盖 Alt-Tab、拖拽中弹菜单等场景）
-- **高 DPI 拖拽失灵**：125%/150% 缩放下挂件移动速度与光标不同步。拖拽增量改为在主进程用 `getCursorScreenPoint()` 绝对坐标计算，单位天然一致；同时消除慢速拖动时逐帧取整丢失小数位移的问题
-- **拖出屏幕丢失**：拖拽位置现在自动钳制在显示器工作区内，跨屏拖拽不受影响；托盘/右键菜单新增「📍 回到默认位置」
-- **全屏期间隐形窗口可交互**：全屏自动隐藏时只做了透明化，挂件区域仍会吞掉游戏点击、甚至误触语音。现全屏隐藏期间完全忽略鼠标事件，且屏蔽穿透切换请求
-- **多显示器误判全屏**：任务栏仅主屏显示时，副屏 workArea==size 会被永久误判为全屏导致挂件永久隐藏。现只检测挂件所在显示器
-- **托盘图标残留**：退出时销毁托盘图标
-- **打包瘦身**：files 移除 `node_modules/**`（应用无运行时依赖，此前的包体积白胖数十 MB）
-
-**✨ 新增**
-
-- `npm run build:green` 一键产出绿色包 zip（win-unpacked + 相对路径启动器 + 文件夹内快捷方式生成器），解压后双击 `run-widget.cmd` 即可运行，无需安装
-- 自定义应用图标：取 `yoimiya.gif` 静态帧生成 `build/icon.ico`，exe / 窗口 / 快捷方式不再是默认 Electron 图标
-- 打包脚本内置 npmmirror 镜像回退，GitHub 不可达时也能正常构建
-- 压缩改用 .NET ZipFile，规避 Compress-Archive 在部分环境下的路径解析问题
-
-### v1.0.0
-
-- 首个版本：透明无边框置顶窗口、5 条随机台词 + 语音、托盘 + 右键菜单、全屏避让、JS 拖拽 + 点击穿透、electron-builder 打包
 
 ---
 
