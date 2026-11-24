@@ -1,5 +1,25 @@
 # 更新日志 — Changelog
 
+## dev（未发布）— 工程化基线 + AI 试点
+
+**🏗️ 工程与资源（P0）**
+
+- **资源管线**：21MB 不透明 GIF（720px/33fps，实心黑底）经 rembg u2net 抠图 + 抽帧 + 缩放，重制为 **1.4MB 透明动画 WebP**（480px/63 帧/16.7fps），黑边消除、边缘抗锯齿；应用资源体积 21.6MB → **3.33MB（app.asar）**
+- **角色包架构**：台词/语音/立绘迁移到 `characters/yoimiya/`（manifest.json 驱动），换角色零改码；音频统一小写 `.mp3`（asar 大小写兼容）
+- **设置持久化**：electron-store 保存位置/音效/置顶/音量/AI 开关，重启全恢复（位置恢复自动钳制回工作区）
+- **调试入口收敛**：开发者工具/重新加载仅开发模式注入；`start:win` 环境变量残留修复
+- **工程化**：MIT LICENSE、ESLint + Prettier + jsconfig、GitHub Actions CI（lint + test + build:dir，tag 自动发布并附 SHA256）、`node --test` 单元测试 23 例
+- **体验**：拖拽松手惯性滑行 + 边界回弹；idle 状态机（长时间未交互/整点/深夜台词）；全屏检测增加事件触发即时检查；托盘 16/32 双尺寸图标；右键菜单 0–100 音量滑条
+
+**🤖 AI 试点（P1，全部可降级）**
+
+- **LLM 对话**：DeepSeek 兼容客户端（SSE 流式、`{text,emotion,motion}` JSON 三元组容错解析、流式 text 字段切句），思考中气泡 → 逐句显示；连续失败自动停用并回落本地台词（`.env.local` 配置 key）
+- **情绪-动作联动**：emotion 驱动气泡 5 套配色（CSS 变量，尾巴自动跟随），motion 驱动 wave/jump/laugh 关键帧
+- **主动搭话**：主进程 `powerMonitor` 检测系统空闲 ≥15 分钟，LLM/本地规则表双路径主动开口
+- **TTS 客户端**：GPT-SoVITS api_v2 封装 + wav 播放 + WebAudio 能量口型同步 PoC（服务不在线自动回落本地 MP3）
+- **Live2D PoC**：pixi-live2d-display + Cubism 4 示例模型验证页（`docs/poc/`）
+- 所有试点的报告与失败原因记录于 `docs/poc/`（含 DeepSeek 第二个 key 401 分析）
+
 ## v1.1.0
 
 **🐛 Bug 修复**
