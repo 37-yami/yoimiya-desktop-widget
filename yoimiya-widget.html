@@ -191,6 +191,88 @@
     }
 
     /* ============================================================
+       情绪-动作联动（P1-C）：emotion 覆盖气泡配色变量
+       （--bubble-border/--bubble-bg 同时作用于主体与尾巴三角）
+       ============================================================ */
+    .speech-bubble.emotion-happy {
+      --bubble-border: #f0c040;
+      --bubble-bg: #fffdf7;
+    }
+
+    .speech-bubble.emotion-excited {
+      --bubble-border: #e8753a;
+      --bubble-bg: #fff3e8;
+    }
+
+    .speech-bubble.emotion-shy {
+      --bubble-border: #f0a0b8;
+      --bubble-bg: #fff5f8;
+    }
+
+    .speech-bubble.emotion-sad {
+      --bubble-border: #7e9bb5;
+      --bubble-bg: #f4f7fb;
+    }
+
+    .speech-bubble.emotion-sleepy {
+      --bubble-border: #8e8ec8;
+      --bubble-bg: #f5f4ff;
+      color: #5a5580;
+    }
+
+    /* 角色动作（P1-C：motion 关键帧，挂到 .character-frame） */
+    .character-frame.motion-wave {
+      animation: motionWave 0.9s ease-in-out 2;
+    }
+
+    @keyframes motionWave {
+      0%,
+      100% {
+        transform: rotate(0deg);
+      }
+      25% {
+        transform: rotate(-7deg);
+      }
+      75% {
+        transform: rotate(7deg);
+      }
+    }
+
+    .character-frame.motion-jump {
+      animation: motionJump 0.85s cubic-bezier(0.3, 0.7, 0.4, 1.2) 2;
+    }
+
+    @keyframes motionJump {
+      0%,
+      100% {
+        transform: translateY(0);
+      }
+      30% {
+        transform: translateY(-22px) scale(1.04);
+      }
+      55% {
+        transform: translateY(0) scale(0.98);
+      }
+      75% {
+        transform: translateY(-9px);
+      }
+    }
+
+    .character-frame.motion-laugh {
+      animation: motionLaugh 0.45s ease-in-out 3;
+    }
+
+    @keyframes motionLaugh {
+      0%,
+      100% {
+        transform: scale(1, 1);
+      }
+      50% {
+        transform: scale(1.07, 0.93);
+      }
+    }
+
+    /* ============================================================
        Volume Panel（P0-7：0-100 音量滑条，右键菜单唤起）
        ============================================================ */
     .volume-panel {
@@ -621,6 +703,7 @@
       const bubble     = document.getElementById('speechBubble');
       const bubbleText = document.getElementById('bubbleText');
       const sparkle    = document.getElementById('sparkleBurst');
+      const characterFrame = document.getElementById('characterFrame');
 
       // ========================================================
       // 🔌 IPC 通信（Electron 桌面模式）
@@ -957,6 +1040,9 @@
         // ③ 重置 4 秒自动隐藏计时器
         resetAutoHideTimer();
 
+        // ③' 本地台词走默认 happy 配色；偶尔来个随机小动作增加生气
+        applyEmotion('happy', Math.random() < 0.35 ? 'wave' : null);
+
         // ④ 显示气泡（先移除隐藏状态，再添加显示状态）
         bubble.classList.remove('hide');
 
@@ -1056,6 +1142,9 @@
             bubbleText.textContent = result.text;
           }
           bubble.classList.remove('thinking');
+
+          // 🎭 情绪-动作联动（P1-C）：LLM 的 emotion/motion 驱动外观
+          applyEmotion(result.emotion, result.motion);
 
           // ---- 语音：TTS pending（等 wav 下发）/ local（随机本地 MP3 占位） ----
           if (result.tts === 'pending') {
@@ -1182,6 +1271,46 @@
       }
 
       // ========================================================
+      // 🎭 情绪-动作联动（P1-C：LLM emotion/motion → 气泡配色 + 角色动作）
+      // ========================================================
+
+      const EMOTION_CLASSES = [
+        'emotion-happy',
+        'emotion-shy',
+        'emotion-sad',
+        'emotion-excited',
+        'emotion-sleepy',
+      ];
+      const MOTION_CLASSES = ['motion-wave', 'motion-jump', 'motion-laugh'];
+      const MOTION_MAP = {
+        idle: null,
+        wave: 'motion-wave',
+        jump: 'motion-jump',
+        laugh: 'motion-laugh',
+      };
+
+      /**
+       * 应用情绪与动作：
+       *   emotion → 气泡配色变量（happy/shy/sad/excited/sleepy）
+       *   motion  → 角色关键帧动画（wave/jump/laugh，播放完自动移除）
+       */
+      function applyEmotion(emotion, motion) {
+        const emo = ['happy', 'shy', 'sad', 'excited', 'sleepy'].includes(emotion)
+          ? emotion
+          : 'happy';
+        for (const c of EMOTION_CLASSES) bubble.classList.remove(c);
+        bubble.classList.add(`emotion-${emo}`);
+
+        for (const c of MOTION_CLASSES) characterFrame.classList.remove(c);
+        const motionClass = MOTION_MAP[motion];
+        if (motionClass) {
+          void characterFrame.offsetWidth; // 强制重排以重触发动画
+          characterFrame.classList.add(motionClass);
+          setTimeout(() => characterFrame.classList.remove(motionClass), 2200);
+        }
+      }
+
+      // ========================================================
       // 🎚️ 音量滑条（P0-7：0-100，右键菜单唤起，持久化）
       // ========================================================
 
@@ -1288,6 +1417,12 @@
         resetAutoHideTimer();
       }
 
+      /** 系统台词（带情绪联动：深夜=sleepy 配色，整点=happy+wave） */
+      function showSystemBubbleWithEmotion(text, emotion, motion) {
+        applyEmotion(emotion, motion);
+        showSystemBubble(text);
+      }
+
       setInterval(
         () => {
           const now = Date.now();
@@ -1297,7 +1432,7 @@
           // ① 整点问候（每小时至多一次）
           if (d.getMinutes() === 0 && lastHourNotified !== d.getHours()) {
             lastHourNotified = d.getHours();
-            showSystemBubble(pickFrom(HOUR_LINES));
+            showSystemBubbleWithEmotion(pickFrom(HOUR_LINES), 'happy', 'wave');
             return;
           }
 
@@ -1307,7 +1442,7 @@
             now - lastNightBubbleAt > IDLE_CONFIG.nightRepeatEveryMs
           ) {
             lastNightBubbleAt = now;
-            showSystemBubble(pickFrom(NIGHT_LINES));
+            showSystemBubbleWithEmotion(pickFrom(NIGHT_LINES), 'sleepy', null);
             return;
           }
 
@@ -1317,7 +1452,7 @@
             now - lastIdleBubbleAt > IDLE_CONFIG.idleRepeatEveryMs
           ) {
             lastIdleBubbleAt = now;
-            showSystemBubble(pickFrom(IDLE_LINES));
+            showSystemBubbleWithEmotion(pickFrom(IDLE_LINES), 'sleepy', null);
           }
         },
         30 * 1000
