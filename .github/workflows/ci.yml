@@ -29,7 +29,14 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Build (portable exe，tag 发布用)
+        if: startsWith(github.ref, 'refs/tags/')
+        run: npm run build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build (dir only, 校验打包)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         run: npm run build:dir
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -40,7 +47,7 @@ jobs:
         with:
           name: YoimiyaWidget-portable
           path: dist/YoimiyaWidget.exe
-          if-no-files-found: warn
+          if-no-files-found: error
 
   release:
     if: startsWith(github.ref, 'refs/tags/')

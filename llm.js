@@ -3,8 +3,8 @@
  * ============================================================
  * 配置来源（优先级：环境变量 > .env.local > 内置默认）：
  *   DEEPSEEK_API_KEY   必填，缺失时视为未启用（回落本地台词表）
- *   DEEPSEEK_MODEL     默认 deepseek-flash（官方已验证）
- *   DEEPSEEK_BASE_URL  默认 https://api.deepseek.com（中转站改这里）
+ *   DEEPSEEK_MODEL     默认 deepseek-flash（官方实测支持；deepseek-chat 已下线）
+ *   DEEPSEEK_BASE_URL 默认 https://api.deepseek.com（中转站改这里）
  *
  * 优雅降级约定：chatComplete 任何异常都向调用方抛出，
  * 由调用方回落到本地 MP3 / 台词表，不影响挂件本体运行。
@@ -58,7 +58,8 @@ function loadLlmConfig(env = process.env, envFile = path.join(__dirname, '.env.l
     // .env.local 不存在 = 未配置，正常
   }
   const apiKey = env.DEEPSEEK_API_KEY || fileEnv.DEEPSEEK_API_KEY || '';
-  const model = env.DEEPSEEK_MODEL || fileEnv.DEEPSEEK_MODEL || 'deepseek-chat';
+  // 默认 deepseek-flash：官方接口实测支持（deepseek-chat 已不存在，见 docs/poc/A3）
+  const model = env.DEEPSEEK_MODEL || fileEnv.DEEPSEEK_MODEL || 'deepseek-flash';
   const baseUrl = (env.DEEPSEEK_BASE_URL || fileEnv.DEEPSEEK_BASE_URL || 'https://api.deepseek.com')
     .replace(/\/+$/, '');
   return { apiKey, model, baseUrl, enabled: Boolean(apiKey) };

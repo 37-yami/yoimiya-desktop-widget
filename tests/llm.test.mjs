@@ -87,3 +87,11 @@ test('sanitizeEmotion/sanitizeMotion 白名单回落', () => {
   assert.deepEqual(EMOTIONS, ['happy', 'shy', 'sad', 'excited', 'sleepy']);
   assert.deepEqual(MOTIONS, ['idle', 'wave', 'jump', 'laugh']);
 });
+
+test('loadLlmConfig 默认模型为已实测验证的 deepseek-flash（官方无 deepseek-chat）', () => {
+  const { loadLlmConfig } = require('../llm.js');
+  const cfg = loadLlmConfig({}, 'Z://definitely-not-exists.env');
+  assert.equal(cfg.model, 'deepseek-flash');
+  assert.equal(cfg.baseUrl, 'https://api.deepseek.com');
+  assert.equal(cfg.enabled, false);
+});

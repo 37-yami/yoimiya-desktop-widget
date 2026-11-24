@@ -340,6 +340,8 @@ function checkFullscreenOnce() {
       mainWindow.setAlwaysOnTop(false);
       mainWindow.setOpacity(0);
       mainWindow.setIgnoreMouseEvents(true); // 不带 forward：隐形期间不接收任何鼠标事件
+      // 通知渲染层进入"隐藏"状态（暂停音频/抑制系统台词与主动搭话外放）
+      mainWindow.webContents.send('window-hidden');
     }
 
     // 全屏结束：恢复可见 + 恢复穿透检测模式（forward）
@@ -351,6 +353,7 @@ function checkFullscreenOnce() {
       if (alwaysOnTop) {
         mainWindow.setAlwaysOnTop(true, 'screen-saver');
       }
+      mainWindow.webContents.send('window-shown');
     }
   } catch (_) {
     // 窗口操作失败（显示配置切换瞬间），下轮重试
@@ -528,6 +531,7 @@ function startProactiveScheduler() {
   if (proactiveTimer) return;
   proactiveTimer = setInterval(() => {
     if (!mainWindow || mainWindow.isDestroyed() || hiddenManually) return;
+    if (fullscreenHidden || mousePassthroughLocked) return; // 全屏隐形期间保持完全退场（不出声不冒泡）
     const now = Date.now();
     if (now - lastProactiveAt < PROACTIVE_COOLDOWN_MS) return;
 
