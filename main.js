@@ -47,6 +47,7 @@ const {
   parseLlmJson,
   TextFieldStreamer,
 } = require('./llm');
+const { checkTtsHealth, ttsLocal } = require('./tts');
 
 // 设置持久化（electron-store，写入 userData/widget-settings.json）
 initStore();
@@ -668,11 +669,27 @@ ipcMain.on('set-volume', (_event, value) => {
 // ============================================================
 // 🤖 LLM 对话（P1-A3：DeepSeek JSON 三元组；A4：流式切句下发）
 // 失败时返回 { ok:false }，渲染进程回落本地台词表（优雅降级）
+// TTS（P1-A1）：GPT-SoVITS 在线则合成 wav 随 'tts-audio' 下发，
+//              返回值 tts 字段标记 'pending'（等音频）/ 'local'（本地 MP3）
 // ============================================================
 ipcMain.handle('llm-chat', async (_event, userText) => {
+  // 健康探测与 LLM 请求并行，不增加总时延
+  const ttsHealthP = checkTtsHealth().catch(() => false);
   try {
     const reply = await runLlmReply(String(userText || '').slice(0, 300));
-    return { ok: true, ...reply };
+    let tts = 'local';
+    if (await ttsHealthP) {
+      try {
+        const wav = await ttsLocal(reply.text, { emotion: reply.emotion });
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('tts-audio', wav);
+          tts = 'pending';
+        }
+      } catch (err) {
+        console.warn('⚠️ TTS 合成失败，回落本地语音:', err.message);
+      }
+    }
+    return { ok: true, ...reply, tts };
   } catch (err) {
     return { ok: false, error: err.message };
   }

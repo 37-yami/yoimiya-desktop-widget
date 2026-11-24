@@ -67,6 +67,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   setVolume: (value) => ipcRenderer.send('set-volume', value),
 
+  // ---- TTS 音频下发（P1-A1：GPT-SoVITS 合成的 wav Buffer） ----
+  onTtsAudio: (callback) => {
+    ipcRenderer.on('tts-audio', (_event, wavBuffer) => callback(wavBuffer));
+  },
+
   // ---- 窗口拖动（主进程绝对坐标 + rAF 节流） ----
   // start：主进程记录光标起点+窗口起点
   // move ：主进程用 getCursorScreenPoint() 计算增量并移动窗口

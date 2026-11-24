@@ -1056,8 +1056,25 @@
             bubbleText.textContent = result.text;
           }
           bubble.classList.remove('thinking');
-          // TTS 尚未接入（P1-A1）：AI 回复暂配随机本地语音占位
-          playAudioForMessage(Math.floor(Math.random() * MESSAGES.length));
+
+          // ---- 语音：TTS pending（等 wav 下发）/ local（随机本地 MP3 占位） ----
+          if (result.tts === 'pending') {
+            if (lastTtsAudio) {
+              const wav = lastTtsAudio;
+              lastTtsAudio = null;
+              playTtsBuffer(wav);
+            } else {
+              // wav 还在路上：限时等待，超时回落本地语音
+              ttsWaitTimer = setTimeout(() => {
+                ttsWaitTimer = null;
+                if (!ttsPlaying) {
+                  playAudioForMessage(Math.floor(Math.random() * MESSAGES.length));
+                }
+              }, TTS_WAIT_MS);
+            }
+          } else {
+            playAudioForMessage(Math.floor(Math.random() * MESSAGES.length));
+          }
           resetAutoHideTimer();
         } catch (err) {
           console.warn('⚠️ llmChat 调用异常，回落本地台词：', err.message);
@@ -1065,6 +1082,103 @@
         } finally {
           aiBusy = false;
         }
+      }
+
+      // ========================================================
+      // 🗣️ TTS 播放（P1-A1/A5：GPT-SoVITS wav + 口型同步 PoC）
+      // ========================================================
+
+      /** 最近收到的 TTS wav（事件可能先于 llm-chat 返回值到达） */
+      let lastTtsAudio = null;
+      let ttsWaitTimer = null;
+      let ttsPlaying = false;
+      const TTS_WAIT_MS = 4000;
+
+      const characterImg = document.querySelector('.character-inner img');
+
+      /** 播放主进程下发的 TTS wav Buffer（IPC 传输后为 Uint8Array） */
+      function playTtsBuffer(wavBuffer) {
+        try {
+          // 停掉当前本地语音
+          if (currentAudio) {
+            currentAudio.pause();
+            currentAudio.currentTime = 0;
+            activeAudioRefs.delete(currentAudio);
+            currentAudio = null;
+          }
+          const blob = new Blob([wavBuffer], { type: 'audio/wav' });
+          const url = URL.createObjectURL(blob);
+          const audio = new Audio(url);
+          audio.volume = currentVolume;
+          activeAudioRefs.add(audio);
+          currentAudio = audio;
+          ttsPlaying = true;
+          audio.addEventListener('ended', () => {
+            URL.revokeObjectURL(url);
+            activeAudioRefs.delete(audio);
+            if (currentAudio === audio) currentAudio = null;
+            ttsPlaying = false;
+          });
+          audio.addEventListener('error', () => {
+            URL.revokeObjectURL(url);
+            ttsPlaying = false;
+          });
+          const playPromise = audio.play();
+          if (playPromise) playPromise.catch((err) => {
+            console.warn('⚠️ TTS 播放被阻止:', err.message);
+            ttsPlaying = false;
+          });
+          attachLipSync(audio);
+        } catch (err) {
+          console.warn('⚠️ TTS Buffer 播放失败:', err.message);
+          ttsPlaying = false;
+        }
+      }
+
+      // ---- P1-A5 口型同步 PoC：WebAudio 能量包络驱动角色缩放（近似口型） ----
+      let lipSyncCtx = null;
+      function attachLipSync(audioEl) {
+        try {
+          lipSyncCtx = lipSyncCtx || new AudioContext();
+          const source = lipSyncCtx.createMediaElementSource(audioEl);
+          const analyser = lipSyncCtx.createAnalyser();
+          analyser.fftSize = 256;
+          source.connect(analyser);
+          analyser.connect(lipSyncCtx.destination);
+          const data = new Uint8Array(analyser.frequencyBinCount);
+          let raf = 0;
+          const tick = () => {
+            analyser.getByteTimeDomainData(data);
+            let sum = 0;
+            for (const v of data) sum += Math.abs(v - 128);
+            const energy = Math.min(1, sum / data.length / 40);
+            // 近似口型：音量越大 → 纵向压缩 + 横向膨胀的"说话感"
+            characterImg.style.transform = `scale(${1 + energy * 0.05}, ${1 - energy * 0.035})`;
+            raf = requestAnimationFrame(tick);
+          };
+          tick();
+          audioEl.addEventListener('ended', () => {
+            cancelAnimationFrame(raf);
+            characterImg.style.transform = '';
+          });
+        } catch (err) {
+          // 口型同步是 PoC 增强项，失败不影响语音播放
+          console.warn('ℹ️ 口型同步 PoC 未生效（不影响播放）:', err.message);
+        }
+      }
+
+      // TTS 音频到达：若正在等待则立即播放，否则缓存给稍后到达的返回值用
+      if (window.electronAPI && window.electronAPI.onTtsAudio) {
+        window.electronAPI.onTtsAudio((wavBuffer) => {
+          if (ttsWaitTimer) {
+            clearTimeout(ttsWaitTimer);
+            ttsWaitTimer = null;
+            lastTtsAudio = null;
+            playTtsBuffer(wavBuffer);
+          } else {
+            lastTtsAudio = wavBuffer;
+          }
+        });
       }
 
       // ========================================================
