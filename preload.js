@@ -12,10 +12,27 @@
  */
 
 const { contextBridge, ipcRenderer } = require('electron');
+const path = require('path');
+const { MANIFEST_PATH, CHARACTER_DIR } = require('./config');
+
+// 渲染层使用的相对资源根路径（如 characters/yoimiya）
+const CHARACTER_REL = path.relative(__dirname, CHARACTER_DIR).replaceAll('\\', '/');
+
+// 读取角色包 manifest（换角色 = 换 characters/<name> 目录，渲染层零改动）
+let characterManifest = null;
+try {
+  characterManifest = require(MANIFEST_PATH);
+} catch (err) {
+  console.warn('⚠️ 角色包 manifest 加载失败，渲染层将使用内置兜底配置:', err.message);
+}
 
 contextBridge.exposeInMainWorld('electronAPI', {
   // ---- 环境标识 ----
   isElectron: true,
+
+  // ---- 角色包（manifest.json 内容 + 资源根路径） ----
+  getCharacter: () => characterManifest,
+  characterDirName: CHARACTER_REL,
 
   // ---- 音效开关（主进程 → 渲染进程） ----
   // callback 接收 (enabled: boolean)

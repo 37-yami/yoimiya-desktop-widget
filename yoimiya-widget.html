@@ -596,24 +596,36 @@
       }
 
       // ========================================================
-      // 🎀 配置区 —— 修改这里来定制台词和音频
+      // 🎀 配置区 —— 角色包 manifest 驱动
       // ========================================================
 
       /**
-       * 宵宫台词数组（8 条温馨、元气的中文台词）
+       * 宵宫台词与语音 —— 来自 characters/yoimiya/manifest.json
        *
-       * 如何自定义台词：
-       *   - 直接修改下方数组中的文本即可
-       *   - 数组索引 0~4 与音频文件 voice1.mp3 ~ voice5.mp3 一一对应
-       *   - 可以增减条目，但记得同步调整音频文件的数量
+       * lines[i] 与 voices[i] 一一对应；
+       * manifest 加载失败时回落到内置默认台词（音效自然静默）。
        */
-      const MESSAGES = [
-        '烟花易逝，人情长存！✨',                                 // 索引 0 → voice1.mp3
-        '风好大，声音都被吹回来啦～🎆',                            // 索引 1 → voice2.mp3
-        '哈哈，看我搓个雪球，咻——💥',                              // 索引 2 → voice3.mp3
-        '『英雄形态』的宵宫姐姐登场！邪恶必散，正义必胜！',           // 索引 3 → voice4.mp3
-        '一起去玩吧！😆',                                         // 索引 4 → voice5.mp3
-      ];
+      const character = window.electronAPI?.getCharacter?.() || null;
+      const characterRoot = window.electronAPI?.characterDirName || 'characters/yoimiya';
+
+      const MESSAGES = (character?.lines?.length)
+        ? character.lines
+        : ['烟花易逝，人情长存！✨', '一起去玩吧！😆'];
+
+      /** 角色立绘 / 动画资源（相对应用根目录） */
+      const SPRITE_SRC = character?.sprite || 'yoimiya.gif';
+
+      /** 语音文件名数组（全小写 .mp3，与 manifest 同步） */
+      const VOICE_FILES = (character?.voices?.length)
+        ? character.voices
+        : [];
+
+      // ---- 角色立绘：优先使用角色包 manifest 声明的资源 ----
+      // 静态 src="yoimiya.gif" 仅作为浏览器直接打开时的兜底
+      const spriteImg = document.querySelector('.character-inner img');
+      if (spriteImg && character?.sprite) {
+        spriteImg.src = character.sprite;
+      }
 
       /**
        * 音效状态 —— 由主进程右键菜单通过 IPC 控制
@@ -627,23 +639,6 @@
        * isSoundEnabled 保持 false，音效永不播放。
        */
       let isSoundEnabled = true;
-
-      /**
-       * 音频文件路径配置
-       *
-       * 📁 如何准备音频文件：
-       *   1. 在 index.html 同级目录下创建 audio/ 文件夹
-       *   2. 录制每条台词的配音，按以下规则命名：
-       *        MESSAGES[0] 的配音 → audio/voice1.mp3
-       *        MESSAGES[1] 的配音 → audio/voice2.mp3
-       *        ...以此类推（索引 + 1 = 文件名中的数字）
-       *   3. 支持 .mp3 / .ogg / .wav 格式 —— 修改 AUDIO_EXT 即可切换
-       *
-       * 🔇 音效由右键菜单的「开启音效」复选框控制，
-       *    默认关闭，用户需要手动开启。
-       */
-      const AUDIO_BASE_PATH = './audio/voice';        // ← 音频文件路径前缀
-      const AUDIO_EXT       = '.MP3';                 // ← 需与文件名大小写一致（asar 区分大小写）
 
       /** 气泡自动消失时间（毫秒），默认 4000 = 4 秒 */
       const AUTO_HIDE_DELAY = 4000;
@@ -692,9 +687,13 @@
         }
 
         // ---- 构建音频文件路径（绝对 URL，asar 内也可正确解析） ----
-        const fileNumber = messageIndex + 1;
-        const fileName   = `voice${fileNumber}${AUDIO_EXT}`;
-        const audioPath  = new URL(`./audio/${fileName}`, window.location.href).href;
+        // 语音文件名来自角色包 manifest（全小写 .mp3，asar 内大小写敏感）
+        const voiceFile = VOICE_FILES[messageIndex];
+        if (!voiceFile) return;   // 角色包没有这条语音 → 静默跳过
+        const audioPath  = new URL(
+          `${characterRoot}/voices/${voiceFile}`,
+          window.location.href
+        ).href;
 
         try {
           // ---- 创建 Audio 实例并加入引用池 ----
@@ -706,8 +705,8 @@
             console.warn(
               `⚠️ 音频文件未找到或无法播放: ${audioPath}\n` +
               `   请确认：\n` +
-              `   ① 文件确实存在于该路径\n` +
-              `   ② 文件名与台词索引匹配（台词[${messageIndex}] → voice${fileNumber}${AUDIO_EXT}）\n` +
+              `   ① 文件确实存在于该路径（characters/yoimiya/voices/）\n` +
+              `   ② manifest.json 的 voices 与 lines 一一对应\n` +
               `   ③ 如暂无音频，请在右键菜单中关闭「开启音效」`
             );
             activeAudioRefs.delete(currentAudio);   // 出错也清理
@@ -1085,8 +1084,7 @@
         '🎆  宵宫悬浮挂件已就绪！\n' +
         '   📍 右下角的宵宫正在等你戳她～\n' +
         '   💬 气泡 4 秒后自动消失，点击可刷新台词并重置计时\n' +
-        '   🎵 如需启用音频：右键菜单 → 勾选「开启音效」\n' +
-        '   📁 音频路径：audio/voice1.mp3 ~ voice5.mp3\n' +
+        '   🎵 台词与语音来自 characters/yoimiya/manifest.json\n' +
         '   🎵 音效默认开启，右键菜单可切换'
       );
     })();

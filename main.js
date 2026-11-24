@@ -22,14 +22,11 @@ const {
   ipcMain, nativeImage,
 } = require('electron');
 const path = require('path');
-
-// ============================================================
-// 📐 窗口配置（可根据需要调整）
-// ============================================================
-const WIDGET_WIDTH  = 240;   // 窗口宽度（容纳角色+气泡+浮动空间）
-const WIDGET_HEIGHT = 300;   // 窗口高度
-const EDGE_RIGHT    = 24;    // 距屏幕右边缘（px）
-const EDGE_BOTTOM   = 16;    // 距屏幕下边缘（px）
+const {
+  WIDGET_WIDTH, WIDGET_HEIGHT,
+  EDGE_RIGHT, EDGE_BOTTOM,
+  FULLSCREEN_THRESHOLD,
+} = require('./config');
 
 // ============================================================
 // 🔧 全局状态
@@ -45,7 +42,6 @@ let hiddenManually        = false;   // 用户手动隐藏（用于区分自动�
 
 // 全屏检测防抖
 let fullscreenCounter     = 0;
-const FULLSCREEN_THRESHOLD = 2;      // 连续检测到全屏 N 次后才触发
 let fullscreenPollTimer   = null;
 
 // 全屏隐藏是否正在生效（状态标记，避免每轮轮询重复设置窗口属性）
