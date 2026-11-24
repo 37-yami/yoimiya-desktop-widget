@@ -16,6 +16,7 @@ const DEFAULTS = Object.freeze({
   autoHideOnFullscreen: true, // 全屏应用时自动隐藏
   volume: 100, // 音量 0-100
   windowPosition: null, // [x, y]（null = 使用默认右下角）
+  aiChatEnabled: false, // AI 对话（P1：默认关闭，未配 key 时零依赖）
 });
 
 let storeInstance = null;

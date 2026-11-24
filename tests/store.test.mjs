@@ -12,6 +12,7 @@ test('默认设置完整且类型正确', () => {
   assert.equal(d.autoHideOnFullscreen, true);
   assert.equal(d.volume, 100);
   assert.equal(d.windowPosition, null);
+  assert.equal(d.aiChatEnabled, false, 'AI 对话默认关闭（未配 key 时零依赖）');
 });
 
 test('音量写入时钳制到 0-100', () => {

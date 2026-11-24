@@ -31,6 +31,12 @@ const {
   FULLSCREEN_THRESHOLD,
 } = require('./config');
 const { initStore, getSetting, setSetting } = require('./store');
+const {
+  loadLlmConfig,
+  chatComplete,
+  parseLlmJson,
+  TextFieldStreamer,
+} = require('./llm');
 
 // 设置持久化（electron-store，写入 userData/widget-settings.json）
 initStore();
@@ -61,6 +67,55 @@ let mousePassthroughLocked = false;
 // 渲染进程的 e.screenX 与主进程窗口坐标在非 100% DPI 缩放下
 // 单位可能不一致（Electron 已知问题），在主进程内部计算可完全规避。
 let dragState = null; // { startCursor: {x, y}, startWindow: [x, y] }
+
+// ============================================================
+// 🤖 LLM 对话状态（P1-A3/A4：DeepSeek 流式管线）
+// ============================================================
+let aiChatEnabled = getSetting('aiChatEnabled');
+const llmConfig = loadLlmConfig(); // .env.local / 环境变量
+let llmFailCount = 0;
+let llmSuspended = false; // 连续失败 ≥3 次后本次运行期内停用（如 401/断网），避免每次点击都打一次失败请求
+
+function llmAvailable() {
+  return llmConfig.enabled && !llmSuspended;
+}
+
+/**
+ * 调用 LLM 生成回复；流式增量经 TextFieldStreamer 切句后
+ * 即时推送给渲染进程（第一句话不必等整个 JSON 收完）。
+ */
+async function runLlmReply(userText) {
+  if (!llmAvailable()) throw new Error('LLM 未启用（无 key 或已因连续失败停用）');
+  const streamer = new TextFieldStreamer();
+  const sendSentence = (s) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('llm-sentence', s);
+    }
+  };
+  try {
+    const full = await chatComplete(llmConfig, {
+      userText,
+      onDelta: (delta) => {
+        for (const s of streamer.feed(delta)) sendSentence(s);
+      },
+    });
+    for (const s of streamer.flush()) sendSentence(s);
+    const parsed = parseLlmJson(full);
+    if (!parsed) throw new Error('LLM 回复无法解析为 JSON 三元组');
+    llmFailCount = 0;
+    return parsed;
+  } catch (err) {
+    llmFailCount += 1;
+    if (llmFailCount >= 3 && !llmSuspended) {
+      llmSuspended = true;
+      console.warn(
+        `⚠️ LLM 连续失败 ${llmFailCount} 次，本次运行期内停用（回落本地台词）:`,
+        err.message
+      );
+    }
+    throw err;
+  }
+}
 
 // ============================================================
 // 🎨 托盘图标（16×16 橙色方块，匹配宵宫配色 #E8753A）
@@ -164,6 +219,21 @@ function buildContextMenu() {
       },
     },
     { type: 'separator' },
+    {
+      label: llmAvailable()
+        ? '💬 AI 对话（DeepSeek）'
+        : '💬 AI 对话（未配置/已停用）',
+      type: 'checkbox',
+      checked: aiChatEnabled && llmAvailable(),
+      enabled: llmAvailable(),
+      click: (menuItem) => {
+        aiChatEnabled = menuItem.checked;
+        setSetting('aiChatEnabled', aiChatEnabled); // 💾 持久化
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('ai-chat-toggled', aiChatEnabled);
+        }
+      },
+    },
     ...devMenuItems(),
     {
       label: '❌ 关闭挂件',
@@ -535,7 +605,21 @@ ipcMain.handle('get-settings', () => {
     soundEnabled,
     alwaysOnTop,
     volume: getSetting('volume'),
+    aiChatEnabled: aiChatEnabled && llmAvailable(),
   };
+});
+
+// ============================================================
+// 🤖 LLM 对话（P1-A3：DeepSeek JSON 三元组；A4：流式切句下发）
+// 失败时返回 { ok:false }，渲染进程回落本地台词表（优雅降级）
+// ============================================================
+ipcMain.handle('llm-chat', async (_event, userText) => {
+  try {
+    const reply = await runLlmReply(String(userText || '').slice(0, 300));
+    return { ok: true, ...reply };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
 });
 
 // ============================================================

@@ -148,6 +148,58 @@ class SentenceSplitter {
   }
 }
 
+/**
+ * 流式 JSON text 字段提取器：
+ * 边收 SSE 增量边找 "text":"..."，字段内容一到标点就切句产出，
+ * 使第一句话先于整个 JSON 收完即可送 TTS（A4 流式管线核心）。
+ *
+ * 已知限制：不处理 text 值内的转义引号（中文台词场景几乎不出现）。
+ */
+class TextFieldStreamer {
+  constructor() {
+    this.buf = '';
+    this.started = false;
+    this.done = false;
+    this.splitter = new SentenceSplitter();
+  }
+
+  /**
+   * 喂入增量，返回本批切出的完整句子。
+   * 检测到闭合引号后进入 done 状态，后续 feed 一律返回空数组。
+   */
+  feed(delta) {
+    if (this.done) return [];
+    this.buf += delta;
+
+    if (!this.started) {
+      const m = this.buf.match(/"text"\s*:\s*"/);
+      if (!m) return []; // 字段名可能还被拆在包边界，攒着
+      this.started = true;
+      this.buf = this.buf.slice(m.index + m[0].length);
+    }
+
+    const end = this.buf.indexOf('"');
+    if (end !== -1) {
+      const text = this.buf.slice(0, end);
+      this.buf = '';
+      this.done = true;
+      return [...this.splitter.feed(text), ...this.splitter.flush()];
+    }
+    const newChars = this.buf;
+    this.buf = '';
+    return this.splitter.feed(newChars);
+  }
+
+  /** 流结束仍未见到闭合引号：把已收到的内容作为尾句返回 */
+  flush() {
+    if (this.done || !this.started) return [];
+    this.done = true;
+    const rest = this.buf;
+    this.buf = '';
+    return [...this.splitter.feed(rest), ...this.splitter.flush()];
+  }
+}
+
 // ============================================================
 // API 调用（SSE 流式）
 // ============================================================
@@ -224,5 +276,6 @@ module.exports = {
   loadLlmConfig,
   parseLlmJson,
   SentenceSplitter,
+  TextFieldStreamer,
   chatComplete,
 };

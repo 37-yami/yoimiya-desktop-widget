@@ -52,6 +52,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSoundState: () => ipcRenderer.invoke('get-sound-state'),
   getSettings: () => ipcRenderer.invoke('get-settings'),
 
+  // ---- LLM 对话（P1：DeepSeek 流式） ----
+  llmChat: (userText) => ipcRenderer.invoke('llm-chat', userText),
+  onLlmSentence: (callback) => {
+    ipcRenderer.on('llm-sentence', (_event, sentence) => callback(sentence));
+  },
+  onAiChatToggled: (callback) => {
+    ipcRenderer.on('ai-chat-toggled', (_event, enabled) => callback(enabled));
+  },
+
   // ---- 窗口拖动（主进程绝对坐标 + rAF 节流） ----
   // start：主进程记录光标起点+窗口起点
   // move ：主进程用 getCursorScreenPoint() 计算增量并移动窗口

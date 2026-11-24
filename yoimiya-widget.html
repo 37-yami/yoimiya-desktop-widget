@@ -171,6 +171,25 @@
       animation: bubbleFadeOut 0.2s ease forwards;
     }
 
+    /* ============================================================
+       AI 思考中状态（P1-A4：LLM 流式等待提示）
+       ============================================================ */
+    .speech-bubble.thinking {
+      font-style: italic;
+      color: #9a7b4f;
+      animation: thinkingPulse 1.2s ease-in-out infinite;
+    }
+
+    @keyframes thinkingPulse {
+      0%,
+      100% {
+        opacity: 0.55;
+      }
+      50% {
+        opacity: 1;
+      }
+    }
+
     @keyframes bubbleBounceIn {
       0% {
         opacity: 0;
@@ -575,8 +594,24 @@
             currentVolume  = Number.isFinite(settings.volume)
               ? settings.volume / 100
               : 1;
+            aiChatEnabled = Boolean(settings.aiChatEnabled);
           }
         }).catch(() => { /* 主进程未就绪时保持默认值 */ });
+
+        // ⑤ AI 对话开关切换（右键菜单）
+        if (window.electronAPI.onAiChatToggled) {
+          window.electronAPI.onAiChatToggled((enabled) => {
+            aiChatEnabled = Boolean(enabled);
+            console.log('💬 AI 对话已', enabled ? '开启' : '关闭');
+          });
+        }
+
+        // ⑥ LLM 流式句子到达 → 逐句更新气泡
+        if (window.electronAPI.onLlmSentence) {
+          window.electronAPI.onLlmSentence((sentence) => {
+            appendAiSentence(sentence);
+          });
+        }
 
         // ② 监听主进程的音效切换命令
         window.electronAPI.onToggleSound((enabled) => {
@@ -905,6 +940,84 @@
       }
 
       // ========================================================
+      // 🤖 AI 对话模块（P1-A3/A4：DeepSeek 流式 → 气泡逐句显示）
+      // ========================================================
+
+      /** AI 对话开关（主进程菜单控制 + 设置持久化） */
+      let aiChatEnabled = false;
+      /** 防连点：一次 LLM 请求进行中时忽略新的点击 */
+      let aiBusy = false;
+      /** 本次 AI 回复已收到的句子（气泡累积显示） */
+      let aiSentences = [];
+
+      /** 显示"思考中"占位气泡 */
+      function showAiThinking() {
+        aiSentences = [];
+        bubbleText.textContent = '（歪头思考中……✨）';
+        bubble.classList.remove('hide');
+        bubble.classList.add('thinking');
+        void bubble.offsetWidth; // 强制重排，重触发弹入动画
+        bubble.classList.add('show');
+        resetAutoHideTimer();
+      }
+
+      /** 流式收到一句话 → 累积更新气泡 */
+      function appendAiSentence(sentence) {
+        aiSentences.push(sentence);
+        bubbleText.textContent = aiSentences.join('');
+        bubble.classList.remove('thinking');
+        resetAutoHideTimer();
+      }
+
+      /** 构造戳一戳场景的对话上下文（无键盘输入，用场景描述代替） */
+      function buildChatContext() {
+        const h = new Date().getHours();
+        const period =
+          h < 5
+            ? '深夜'
+            : h < 11
+              ? '早上'
+              : h < 14
+                ? '中午'
+                : h < 18
+                  ? '下午'
+                  : h < 23
+                    ? '晚上'
+                    : '深夜';
+        return `[场景：用户戳了戳你，现在是${period}] 请做出一句符合性格的回应`;
+      }
+
+      /**
+       * 请求 AI 回复；失败时回落本地台词表（优雅降级，挂件永不因此卡死）
+       */
+      async function requestAiReply() {
+        if (aiBusy) return;
+        aiBusy = true;
+        showAiThinking();
+        try {
+          const result = await window.electronAPI.llmChat(buildChatContext());
+          if (!result || !result.ok) {
+            console.warn('⚠️ LLM 失败，回落本地台词：', result && result.error);
+            showBubble(); // 本地台词 + 本地语音兜底
+            return;
+          }
+          // 流式遗漏兜底：整句补齐显示
+          if (aiSentences.join('') !== result.text) {
+            bubbleText.textContent = result.text;
+          }
+          bubble.classList.remove('thinking');
+          // TTS 尚未接入（P1-A1）：AI 回复暂配随机本地语音占位
+          playAudioForMessage(Math.floor(Math.random() * MESSAGES.length));
+          resetAutoHideTimer();
+        } catch (err) {
+          console.warn('⚠️ llmChat 调用异常，回落本地台词：', err.message);
+          showBubble();
+        } finally {
+          aiBusy = false;
+        }
+      }
+
+      // ========================================================
       // 🖱️ 事件绑定
       // ========================================================
 
@@ -1022,9 +1135,13 @@
         if (!dragInfo) return;
 
         if (!dragInfo.moved) {
-          // 没有移动 → 纯点击
+          // 没有移动 → 纯点击（AI 对话开启时走 LLM，否则本地台词）
           triggerSparkle();
-          showBubble();
+          if (aiChatEnabled && window.electronAPI && window.electronAPI.llmChat) {
+            requestAiReply();
+          } else {
+            showBubble();
+          }
         }
 
         endDrag(e);

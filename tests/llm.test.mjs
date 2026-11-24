@@ -64,6 +64,24 @@ test('SentenceSplitter 长句按逗号断句（流式首包提前）', () => {
   assert.equal(out[0], '今晚的烟花，');
 });
 
+test('TextFieldStreamer 跨包流式提取 JSON text 字段并切句', () => {
+  const { TextFieldStreamer } = require('../llm.js');
+  const t = new TextFieldStreamer();
+  assert.deepEqual(t.feed('{"te'), [], '字段名未到齐');
+  assert.deepEqual(t.feed('xt":"今晚的烟花'), [], '尚无标点');
+  assert.deepEqual(t.feed('特别漂亮，'), ['今晚的烟花特别漂亮，'], '第一句应先于 JSON 收完产出');
+  assert.deepEqual(t.feed('不看可惜哦！","emotion"'), ['不看可惜哦！'], '闭合引号即结束');
+  assert.equal(t.done, true);
+  assert.deepEqual(t.feed(':"happy"}'), [], '结束后不再产出');
+});
+
+test('TextFieldStreamer 流意外截断时 flush 兜底', () => {
+  const { TextFieldStreamer } = require('../llm.js');
+  const t = new TextFieldStreamer();
+  t.feed('{"text":"晚安');
+  assert.deepEqual(t.flush(), ['晚安']);
+});
+
 test('sanitizeEmotion/sanitizeMotion 白名单回落', () => {
   const { EMOTIONS, MOTIONS } = require('../llm.js');
   assert.deepEqual(EMOTIONS, ['happy', 'shy', 'sad', 'excited', 'sleepy']);
