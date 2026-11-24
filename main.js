@@ -22,6 +22,10 @@ const {
   ipcMain, nativeImage,
 } = require('electron');
 const path = require('path');
+const { clearRunAsNode, isDevMode } = require('./env');
+
+// 兜底：清理 ELECTRON_RUN_AS_NODE 残留（start:win 在部分 shell 下的坑）
+clearRunAsNode(process.env);
 const {
   WIDGET_WIDTH, WIDGET_HEIGHT,
   EDGE_RIGHT, EDGE_BOTTOM,
@@ -67,6 +71,31 @@ const TRAY_ICON_PATH = path.join(__dirname, 'tray-icon.png');
 // ============================================================
 // 📋 构建右键菜单模板
 // ============================================================
+
+/** 调试入口（重新加载 / 开发者工具）仅在开发模式下注入 */
+function devMenuItems() {
+  if (!isDevMode(app.isPackaged, process.argv)) return [];
+  return [
+    {
+      label: '🔄 重新加载',
+      click: () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.reload();
+        }
+      },
+    },
+    {
+      label: '🔧 开发者工具',
+      click: () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.openDevTools({ mode: 'detach' });
+        }
+      },
+    },
+    { type: 'separator' },
+  ];
+}
+
 function buildContextMenu() {
   return Menu.buildFromTemplate([
     {
@@ -136,23 +165,7 @@ function buildContextMenu() {
       },
     },
     { type: 'separator' },
-    {
-      label: '🔄 重新加载',
-      click: () => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.reload();
-        }
-      },
-    },
-    {
-      label: '🔧 开发者工具',
-      click: () => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.openDevTools({ mode: 'detach' });
-        }
-      },
-    },
-    { type: 'separator' },
+    ...devMenuItems(),
     {
       label: '❌ 关闭挂件',
       click: () => {
