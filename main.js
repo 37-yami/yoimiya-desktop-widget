@@ -512,6 +512,51 @@ function showWindowFromTray() {
 }
 
 // ============================================================
+// ⏰ 主动搭话调度器（P1-D：系统空闲 N 分钟 → LLM 主动一句话）
+// ------------------------------------------------------------
+// 与渲染层 idle 状态机（widget 无交互）互补：这里检测的是
+// 【整机】空闲时长（powerMonitor.getSystemIdleTime，仅主进程可用）。
+// 整点/深夜台词已由渲染层规则表负责，这里只做系统空闲触发，
+// 避免两套调度重复冒泡。
+// ============================================================
+let proactiveTimer = null;
+let lastProactiveAt = 0;
+const PROACTIVE_COOLDOWN_MS = 20 * 60 * 1000;
+const PROACTIVE_IDLE_THRESHOLD_MIN = 15;
+
+function startProactiveScheduler() {
+  if (proactiveTimer) return;
+  proactiveTimer = setInterval(() => {
+    if (!mainWindow || mainWindow.isDestroyed() || hiddenManually) return;
+    const now = Date.now();
+    if (now - lastProactiveAt < PROACTIVE_COOLDOWN_MS) return;
+
+    let idleSeconds;
+    try {
+      idleSeconds = powerMonitor.getSystemIdleTime();
+    } catch (_) {
+      return;
+    }
+    const idleMinutes = Math.floor(idleSeconds / 60);
+    if (idleMinutes < PROACTIVE_IDLE_THRESHOLD_MIN) return;
+
+    lastProactiveAt = now;
+    mainWindow.webContents.send('proactive-trigger', {
+      kind: 'idle',
+      idleMinutes,
+      hour: new Date().getHours(),
+    });
+  }, 5 * 60 * 1000); // 每 5 分钟评估一次
+}
+
+function stopProactiveScheduler() {
+  if (proactiveTimer) {
+    clearInterval(proactiveTimer);
+    proactiveTimer = null;
+  }
+}
+
+// ============================================================
 // 🪟 创建透明无边框置顶窗口
 // ============================================================
 function createWindow() {
@@ -615,6 +660,7 @@ if (!gotTheLock) {
     createWindow();
     createTray();
     startFullscreenPolling(); // 默认开启全屏检测
+    startProactiveScheduler(); // P1-D：系统空闲主动搭话
 
     // macOS: 点击 Dock 图标时如果无窗口则重新创建
     app.on('activate', () => {
@@ -636,6 +682,7 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   stopFullscreenPolling();
   stopInertia();
+  stopProactiveScheduler();
   if (tray) {
     tray.destroy();
     tray = null;

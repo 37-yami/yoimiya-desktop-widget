@@ -1125,13 +1125,16 @@
 
       /**
        * 请求 AI 回复；失败时回落本地台词表（优雅降级，挂件永不因此卡死）
+       * @param {string} [contextOverride] 主动搭话等场景的上下文（缺省用戳一戳场景）
        */
-      async function requestAiReply() {
+      async function requestAiReply(contextOverride) {
         if (aiBusy) return;
         aiBusy = true;
         showAiThinking();
         try {
-          const result = await window.electronAPI.llmChat(buildChatContext());
+          const result = await window.electronAPI.llmChat(
+            contextOverride || buildChatContext()
+          );
           if (!result || !result.ok) {
             console.warn('⚠️ LLM 失败，回落本地台词：', result && result.error);
             showBubble(); // 本地台词 + 本地语音兜底
@@ -1266,6 +1269,44 @@
             playTtsBuffer(wavBuffer);
           } else {
             lastTtsAudio = wavBuffer;
+          }
+        });
+      }
+
+      // ========================================================
+      // ⏰ 主动搭话（P1-D：主进程系统空闲触发 → LLM/本地规则表）
+      // ========================================================
+
+      /** 构造主动搭话上下文（时间 + 系统空闲时长，不引入记忆系统） */
+      function buildProactiveContext(info) {
+        const h = info.hour ?? new Date().getHours();
+        const period =
+          h < 5
+            ? '深夜'
+            : h < 11
+              ? '早上'
+              : h < 14
+                ? '中午'
+                : h < 18
+                  ? '下午'
+                  : h < 23
+                    ? '晚上'
+                    : '深夜';
+        const idlePart =
+          info.kind === 'idle' && info.idleMinutes
+            ? `，用户已经离开电脑 ${info.idleMinutes} 分钟`
+            : '';
+        return `[场景：现在是${period}${idlePart}] 请主动说一句符合性格的话（不要提问句结尾也可以）`;
+      }
+
+      if (window.electronAPI && window.electronAPI.onProactiveTrigger) {
+        window.electronAPI.onProactiveTrigger((info) => {
+          if (aiBusy || widgetHidden) return;
+          if (aiChatEnabled && window.electronAPI.llmChat) {
+            requestAiReply(buildProactiveContext(info));
+          } else {
+            // LLM 未启用 → 本地规则表兜底（睡着等待的语气）
+            showSystemBubbleWithEmotion(pickFrom(IDLE_LINES), 'sleepy', null);
           }
         });
       }

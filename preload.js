@@ -72,6 +72,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('tts-audio', (_event, wavBuffer) => callback(wavBuffer));
   },
 
+  // ---- 主动搭话触发（P1-D：系统空闲检测在主进程） ----
+  onProactiveTrigger: (callback) => {
+    ipcRenderer.on('proactive-trigger', (_event, info) => callback(info));
+  },
+
   // ---- 窗口拖动（主进程绝对坐标 + rAF 节流） ----
   // start：主进程记录光标起点+窗口起点
   // move ：主进程用 getCursorScreenPoint() 计算增量并移动窗口
