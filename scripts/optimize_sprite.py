@@ -80,11 +80,34 @@ def main() -> int:
     ap.add_argument("--fps", type=int, default=16, help="目标帧率")
     ap.add_argument("--quality", type=int, default=80, help="WebP 有损质量")
     ap.add_argument("--limit", type=int, default=0, help="只处理前 N 帧（调试用）")
+    ap.add_argument(
+        "--single",
+        default=None,
+        help="单张静态图模式（AI 立绘等）：抠图 + 等比缩放输出，跳过 GIF 拆帧。与 --method chroma 互斥",
+    )
     args = ap.parse_args()
 
     src = Path(args.src)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
+
+    # ---- 单图模式：AI 生成立绘 → 抠图 → 输出 ----
+    if args.single:
+        if args.method == "chroma":
+            raise SystemExit("--single 仅支持 --method rembg（AI 图为白底，色度键控不适用）")
+        remover = build_rembg_remover(args.model)
+        img = Image.open(args.single).convert("RGBA")
+        print(f"单图模式: {args.single} ({img.size[0]}x{img.size[1]}) → {out}")
+        result = remover(img)
+        # 等比缩放（最长边 = --size，不裁切不变形）
+        w, h = result.size
+        scale = args.size / max(w, h)
+        if scale < 1:
+            result = result.resize((round(w * scale), round(h * scale)), Image.LANCZOS)
+        result.save(out, format="WEBP", quality=args.quality, method=4)
+        size_kb = out.stat().st_size / 1024
+        print(f"完成: {out} ({size_kb:.0f}KB, {result.size[0]}x{result.size[1]})")
+        return 0
 
     gif = Image.open(src)
     n_total = getattr(gif, "n_frames", 1)
