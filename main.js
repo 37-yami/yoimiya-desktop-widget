@@ -27,6 +27,10 @@ const {
   EDGE_RIGHT, EDGE_BOTTOM,
   FULLSCREEN_THRESHOLD,
 } = require('./config');
+const { initStore, getSetting, setSetting } = require('./store');
+
+// 设置持久化（electron-store，写入 userData/widget-settings.json）
+initStore();
 
 // ============================================================
 // 🔧 全局状态
@@ -34,10 +38,10 @@ const {
 let mainWindow  = null;
 let tray        = null;
 
-// 菜单可切换的状态（与渲染进程通过 IPC 同步）
-let soundEnabled          = true;    // 音效开关（默认开启——已放入音频文件）
-let autoHideOnFullscreen  = true;    // 全屏时自动隐藏
-let alwaysOnTop           = true;    // 窗口置顶
+// 菜单可切换的状态（与渲染进程通过 IPC 同步；初始值从持久化设置恢复）
+let soundEnabled          = getSetting('soundEnabled');   // 音效开关
+let autoHideOnFullscreen  = getSetting('autoHideOnFullscreen'); // 全屏时自动隐藏
+let alwaysOnTop           = getSetting('alwaysOnTop');    // 窗口置顶
 let hiddenManually        = false;   // 用户手动隐藏（用于区分自动隐藏）
 
 // 全屏检测防抖
@@ -71,6 +75,7 @@ function buildContextMenu() {
       checked: soundEnabled,
       click: (menuItem) => {
         soundEnabled = menuItem.checked;
+        setSetting('soundEnabled', soundEnabled);   // 💾 持久化
         // 通过 IPC 通知渲染进程切换音效
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('sound-toggled', soundEnabled);
@@ -83,6 +88,7 @@ function buildContextMenu() {
       checked: autoHideOnFullscreen,
       click: (menuItem) => {
         autoHideOnFullscreen = menuItem.checked;
+        setSetting('autoHideOnFullscreen', autoHideOnFullscreen);   // 💾 持久化
         if (autoHideOnFullscreen) {
           startFullscreenPolling();
         } else {
@@ -122,6 +128,7 @@ function buildContextMenu() {
       checked: alwaysOnTop,
       click: (menuItem) => {
         alwaysOnTop = menuItem.checked;
+        setSetting('alwaysOnTop', alwaysOnTop);   // 💾 持久化
         // 全屏模式激活时，不立即应用，等全屏结束自动恢复
         if (mainWindow && !mainWindow.isDestroyed() && fullscreenCounter < FULLSCREEN_THRESHOLD) {
           mainWindow.setAlwaysOnTop(alwaysOnTop, 'screen-saver');
@@ -280,6 +287,17 @@ function resetWidgetPosition() {
     sw - WIDGET_WIDTH  - EDGE_RIGHT,
     sh - WIDGET_HEIGHT - EDGE_BOTTOM
   );
+  saveWindowPosition();
+}
+
+/** 保存当前窗口位置到持久化设置 */
+function saveWindowPosition() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  try {
+    setSetting('windowPosition', mainWindow.getPosition());
+  } catch (_) {
+    // 显示配置切换瞬间可能失败，忽略
+  }
 }
 
 // ============================================================
@@ -363,12 +381,23 @@ function createWindow() {
   const { width: screenW, height: screenH } =
     screen.getPrimaryDisplay().workAreaSize;
 
+  // ---- 启动位置：优先恢复上次保存的位置（钳制回工作区，防"丢失"） ----
+  const savedPos = getSetting('windowPosition');
+  let posX, posY;
+  if (Array.isArray(savedPos) && savedPos.length === 2
+      && Number.isFinite(savedPos[0]) && Number.isFinite(savedPos[1])) {
+    [posX, posY] = clampToWorkArea(savedPos[0], savedPos[1]);
+  } else {
+    posX = screenW - WIDGET_WIDTH  - EDGE_RIGHT;
+    posY = screenH - WIDGET_HEIGHT - EDGE_BOTTOM;
+  }
+
   mainWindow = new BrowserWindow({
     // ---- 尺寸与位置 ----
     width:  WIDGET_WIDTH,
     height: WIDGET_HEIGHT,
-    x: screenW - WIDGET_WIDTH  - EDGE_RIGHT,
-    y: screenH - WIDGET_HEIGHT - EDGE_BOTTOM,
+    x: posX,
+    y: posY,
 
     // ---- 🔑 桌面挂件三大核心属性 ----
     frame:          false,          // ① 无边框（frameless）
@@ -420,8 +449,9 @@ function createWindow() {
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   }
 
-  // ---- 窗口关闭前的清理 ----
+  // ---- 窗口关闭前的清理（顺带保存最终位置） ----
   mainWindow.on('close', () => {
+    saveWindowPosition();
     stopFullscreenPolling();
   });
 }
@@ -480,6 +510,15 @@ ipcMain.handle('get-sound-state', () => {
   return soundEnabled;
 });
 
+// 渲染进程查询全部设置（音量等一次性下发）
+ipcMain.handle('get-settings', () => {
+  return {
+    soundEnabled,
+    alwaysOnTop,
+    volume: getSetting('volume'),
+  };
+});
+
 // ============================================================
 // 🖱️ 拖拽移动窗口（主进程绝对坐标方案）
 //
@@ -512,6 +551,7 @@ ipcMain.on('drag-move', () => {
 
 ipcMain.on('drag-end', () => {
   dragState = null;
+  saveWindowPosition();   // 💾 拖拽结束即保存位置
 });
 
 // 鼠标进入挂件区域 → 关闭穿透，正常接收点击

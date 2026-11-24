@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ---- 查询初始状态（渲染进程主动调用） ----
   getSoundState: () => ipcRenderer.invoke('get-sound-state'),
+  getSettings:   () => ipcRenderer.invoke('get-settings'),
 
   // ---- 窗口拖动（主进程绝对坐标 + rAF 节流） ----
   // start：主进程记录光标起点+窗口起点

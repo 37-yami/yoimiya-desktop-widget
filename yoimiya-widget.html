@@ -568,10 +568,15 @@
        *   ③ 'window-shown'  — 窗口被恢复显示
        */
       if (window.electronAPI) {
-        // ① 同步音效开关状态
-        window.electronAPI.getSoundState().then((enabled) => {
-          isSoundEnabled = enabled;
-        });
+        // ① 同步音效开关 + 音量等设置
+        window.electronAPI.getSettings().then((settings) => {
+          if (settings) {
+            isSoundEnabled = settings.soundEnabled;
+            currentVolume  = Number.isFinite(settings.volume)
+              ? settings.volume / 100
+              : 1;
+          }
+        }).catch(() => { /* 主进程未就绪时保持默认值 */ });
 
         // ② 监听主进程的音效切换命令
         window.electronAPI.onToggleSound((enabled) => {
@@ -640,6 +645,9 @@
        */
       let isSoundEnabled = true;
 
+      /** 当前音量（0-1，来自持久化设置；右键菜单/滑条可改） */
+      let currentVolume = 1;
+
       /** 气泡自动消失时间（毫秒），默认 4000 = 4 秒 */
       const AUTO_HIDE_DELAY = 4000;
 
@@ -698,6 +706,7 @@
         try {
           // ---- 创建 Audio 实例并加入引用池 ----
           currentAudio = new Audio(audioPath);
+          currentAudio.volume = currentVolume;         // 应用持久化音量
           activeAudioRefs.add(currentAudio);        // 防止 GC 误清理
 
           // ---- 错误处理：文件不存在或无法解码 ----

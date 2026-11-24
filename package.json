@@ -40,5 +40,8 @@
     "portable": {
       "artifactName": "YoimiyaWidget.exe"
     }
+  },
+  "dependencies": {
+    "electron-store": "^8.2.0"
   }
 }
