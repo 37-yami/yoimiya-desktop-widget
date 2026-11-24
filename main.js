@@ -17,18 +17,17 @@
  *   npm run dev      → 开发模式（自动打开 DevTools）
  */
 
-const {
-  app, BrowserWindow, Menu, Tray, screen,
-  ipcMain, nativeImage,
-} = require('electron');
+const { app, BrowserWindow, Menu, Tray, screen, ipcMain, nativeImage } = require('electron');
 const path = require('path');
 const { clearRunAsNode, isDevMode } = require('./env');
 
 // 兜底：清理 ELECTRON_RUN_AS_NODE 残留（start:win 在部分 shell 下的坑）
 clearRunAsNode(process.env);
 const {
-  WIDGET_WIDTH, WIDGET_HEIGHT,
-  EDGE_RIGHT, EDGE_BOTTOM,
+  WIDGET_WIDTH,
+  WIDGET_HEIGHT,
+  EDGE_RIGHT,
+  EDGE_BOTTOM,
   FULLSCREEN_THRESHOLD,
 } = require('./config');
 const { initStore, getSetting, setSetting } = require('./store');
@@ -39,21 +38,21 @@ initStore();
 // ============================================================
 // 🔧 全局状态
 // ============================================================
-let mainWindow  = null;
-let tray        = null;
+let mainWindow = null;
+let tray = null;
 
 // 菜单可切换的状态（与渲染进程通过 IPC 同步；初始值从持久化设置恢复）
-let soundEnabled          = getSetting('soundEnabled');   // 音效开关
-let autoHideOnFullscreen  = getSetting('autoHideOnFullscreen'); // 全屏时自动隐藏
-let alwaysOnTop           = getSetting('alwaysOnTop');    // 窗口置顶
-let hiddenManually        = false;   // 用户手动隐藏（用于区分自动隐藏）
+let soundEnabled = getSetting('soundEnabled'); // 音效开关
+let autoHideOnFullscreen = getSetting('autoHideOnFullscreen'); // 全屏时自动隐藏
+let alwaysOnTop = getSetting('alwaysOnTop'); // 窗口置顶
+let hiddenManually = false; // 用户手动隐藏（用于区分自动隐藏）
 
 // 全屏检测防抖
-let fullscreenCounter     = 0;
-let fullscreenPollTimer   = null;
+let fullscreenCounter = 0;
+let fullscreenPollTimer = null;
 
 // 全屏隐藏是否正在生效（状态标记，避免每轮轮询重复设置窗口属性）
-let fullscreenHidden       = false;
+let fullscreenHidden = false;
 // 全屏隐藏期间锁定鼠标穿透 —— 屏蔽渲染进程的穿透切换请求，
 // 防止"隐形窗口"仍然可交互（吞掉全屏应用的点击、误触台词语音）
 let mousePassthroughLocked = false;
@@ -61,7 +60,7 @@ let mousePassthroughLocked = false;
 // 拖拽状态：主进程用屏幕绝对坐标（getCursorScreenPoint）计算增量。
 // 渲染进程的 e.screenX 与主进程窗口坐标在非 100% DPI 缩放下
 // 单位可能不一致（Electron 已知问题），在主进程内部计算可完全规避。
-let dragState = null;   // { startCursor: {x, y}, startWindow: [x, y] }
+let dragState = null; // { startCursor: {x, y}, startWindow: [x, y] }
 
 // ============================================================
 // 🎨 托盘图标（16×16 橙色方块，匹配宵宫配色 #E8753A）
@@ -104,7 +103,7 @@ function buildContextMenu() {
       checked: soundEnabled,
       click: (menuItem) => {
         soundEnabled = menuItem.checked;
-        setSetting('soundEnabled', soundEnabled);   // 💾 持久化
+        setSetting('soundEnabled', soundEnabled); // 💾 持久化
         // 通过 IPC 通知渲染进程切换音效
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('sound-toggled', soundEnabled);
@@ -117,7 +116,7 @@ function buildContextMenu() {
       checked: autoHideOnFullscreen,
       click: (menuItem) => {
         autoHideOnFullscreen = menuItem.checked;
-        setSetting('autoHideOnFullscreen', autoHideOnFullscreen);   // 💾 持久化
+        setSetting('autoHideOnFullscreen', autoHideOnFullscreen); // 💾 持久化
         if (autoHideOnFullscreen) {
           startFullscreenPolling();
         } else {
@@ -157,7 +156,7 @@ function buildContextMenu() {
       checked: alwaysOnTop,
       click: (menuItem) => {
         alwaysOnTop = menuItem.checked;
-        setSetting('alwaysOnTop', alwaysOnTop);   // 💾 持久化
+        setSetting('alwaysOnTop', alwaysOnTop); // 💾 持久化
         // 全屏模式激活时，不立即应用，等全屏结束自动恢复
         if (mainWindow && !mainWindow.isDestroyed() && fullscreenCounter < FULLSCREEN_THRESHOLD) {
           mainWindow.setAlwaysOnTop(alwaysOnTop, 'screen-saver');
@@ -202,7 +201,7 @@ function isFullscreenAppActive() {
     const { width: ww, height: wh } = display.workAreaSize;
     // 阈值 10px —— 任务栏最小高度约 22px（小图标模式），
     // 全屏应用覆盖任务栏后 workArea 会趋近于 size
-    if ((sh - wh < 10) && (sw - ww < 10)) {
+    if (sh - wh < 10 && sw - ww < 10) {
       return true;
     }
     return false;
@@ -237,10 +236,14 @@ function startFullscreenPolling() {
       // 全屏时降级：取消置顶 + 完全透明 + 完全不可交互
       // 拖拽进行中（dragState 非空）则跳过本轮，
       // 避免拖拽中途切断鼠标捕获导致 mouseup 丢失
-      if (fullscreenCounter >= FULLSCREEN_THRESHOLD && !hiddenManually
-          && !fullscreenHidden && !dragState) {
+      if (
+        fullscreenCounter >= FULLSCREEN_THRESHOLD &&
+        !hiddenManually &&
+        !fullscreenHidden &&
+        !dragState
+      ) {
         fullscreenHidden = true;
-        mousePassthroughLocked = true;         // 🔒 锁定：屏蔽渲染进程的穿透切换
+        mousePassthroughLocked = true; // 🔒 锁定：屏蔽渲染进程的穿透切换
         mainWindow.setAlwaysOnTop(false);
         mainWindow.setOpacity(0);
         mainWindow.setIgnoreMouseEvents(true); // 不带 forward：隐形期间不接收任何鼠标事件
@@ -284,10 +287,13 @@ function stopFullscreenPolling() {
  */
 function clampToWorkArea(x, y) {
   const display = screen.getDisplayMatching({
-    x, y, width: WIDGET_WIDTH, height: WIDGET_HEIGHT,
+    x,
+    y,
+    width: WIDGET_WIDTH,
+    height: WIDGET_HEIGHT,
   });
   const wa = display.workArea;
-  const nx = Math.min(Math.max(x, wa.x), wa.x + wa.width  - WIDGET_WIDTH);
+  const nx = Math.min(Math.max(x, wa.x), wa.x + wa.width - WIDGET_WIDTH);
   const ny = Math.min(Math.max(y, wa.y), wa.y + wa.height - WIDGET_HEIGHT);
   return [Math.round(nx), Math.round(ny)];
 }
@@ -296,10 +302,7 @@ function clampToWorkArea(x, y) {
 function resetWidgetPosition() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   const { width: sw, height: sh } = screen.getPrimaryDisplay().workArea;
-  mainWindow.setPosition(
-    sw - WIDGET_WIDTH  - EDGE_RIGHT,
-    sh - WIDGET_HEIGHT - EDGE_BOTTOM
-  );
+  mainWindow.setPosition(sw - WIDGET_WIDTH - EDGE_RIGHT, sh - WIDGET_HEIGHT - EDGE_BOTTOM);
   saveWindowPosition();
 }
 
@@ -391,45 +394,48 @@ function showWindowFromTray() {
 // 🪟 创建透明无边框置顶窗口
 // ============================================================
 function createWindow() {
-  const { width: screenW, height: screenH } =
-    screen.getPrimaryDisplay().workAreaSize;
+  const { width: screenW, height: screenH } = screen.getPrimaryDisplay().workAreaSize;
 
   // ---- 启动位置：优先恢复上次保存的位置（钳制回工作区，防"丢失"） ----
   const savedPos = getSetting('windowPosition');
   let posX, posY;
-  if (Array.isArray(savedPos) && savedPos.length === 2
-      && Number.isFinite(savedPos[0]) && Number.isFinite(savedPos[1])) {
+  if (
+    Array.isArray(savedPos) &&
+    savedPos.length === 2 &&
+    Number.isFinite(savedPos[0]) &&
+    Number.isFinite(savedPos[1])
+  ) {
     [posX, posY] = clampToWorkArea(savedPos[0], savedPos[1]);
   } else {
-    posX = screenW - WIDGET_WIDTH  - EDGE_RIGHT;
+    posX = screenW - WIDGET_WIDTH - EDGE_RIGHT;
     posY = screenH - WIDGET_HEIGHT - EDGE_BOTTOM;
   }
 
   mainWindow = new BrowserWindow({
     // ---- 尺寸与位置 ----
-    width:  WIDGET_WIDTH,
+    width: WIDGET_WIDTH,
     height: WIDGET_HEIGHT,
     x: posX,
     y: posY,
 
     // ---- 🔑 桌面挂件三大核心属性 ----
-    frame:          false,          // ① 无边框（frameless）
-    transparent:    true,           // ② 透明背景
-    alwaysOnTop:    true,           // ③ 始终置顶
+    frame: false, // ① 无边框（frameless）
+    transparent: true, // ② 透明背景
+    alwaysOnTop: true, // ③ 始终置顶
 
     // ---- 辅助属性 ----
-    resizable:      false,
-    skipTaskbar:    true,
-    hasShadow:      false,
+    resizable: false,
+    skipTaskbar: true,
+    hasShadow: false,
     backgroundColor: '#00000000',
 
     // ---- 交互 ----
-    focusable:      true,
-    show:           false,
+    focusable: true,
+    show: false,
 
     // ---- 安全配置 ----
     webPreferences: {
-      nodeIntegration:  false,
+      nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
     },
@@ -452,8 +458,8 @@ function createWindow() {
 
   // ---- 🖱️ 右键自定义菜单（禁用浏览器默认右键） ----
   mainWindow.webContents.on('context-menu', (e) => {
-    e.preventDefault();                         // 阻止浏览器默认右键菜单
-    const menu = buildContextMenu();            // 动态构建（确保勾选状态最新）
+    e.preventDefault(); // 阻止浏览器默认右键菜单
+    const menu = buildContextMenu(); // 动态构建（确保勾选状态最新）
     menu.popup({ window: mainWindow });
   });
 
@@ -487,7 +493,7 @@ if (!gotTheLock) {
   app.whenReady().then(() => {
     createWindow();
     createTray();
-    startFullscreenPolling();  // 默认开启全屏检测
+    startFullscreenPolling(); // 默认开启全屏检测
 
     // macOS: 点击 Dock 图标时如果无窗口则重新创建
     app.on('activate', () => {
@@ -564,7 +570,7 @@ ipcMain.on('drag-move', () => {
 
 ipcMain.on('drag-end', () => {
   dragState = null;
-  saveWindowPosition();   // 💾 拖拽结束即保存位置
+  saveWindowPosition(); // 💾 拖拽结束即保存位置
 });
 
 // 鼠标进入挂件区域 → 关闭穿透，正常接收点击

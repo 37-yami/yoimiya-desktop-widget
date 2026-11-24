@@ -9,14 +9,21 @@
     "dev": "electron . --dev",
     "dev:win": "set ELECTRON_RUN_AS_NODE= && electron . --dev",
     "test": "node --test",
+    "lint": "eslint .",
+    "format": "prettier --write \"**/*.{js,mjs,json,md}\"",
+    "format:check": "prettier --check \"**/*.{js,mjs,json,md}\"",
     "build": "electron-builder --win portable",
     "build:dir": "electron-builder --win --dir",
     "build:green": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/pack-green.ps1"
   },
   "license": "MIT",
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "electron": "^28.0.0",
-    "electron-builder": "^26.8.1"
+    "electron-builder": "^26.8.1",
+    "eslint": "^10.15.0",
+    "globals": "^17.14.0",
+    "prettier": "^3.10.1"
   },
   "build": {
     "appId": "com.yoimiya.desktop-widget",

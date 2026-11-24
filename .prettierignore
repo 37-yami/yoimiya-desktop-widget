@@ -1,0 +1,7 @@
+node_modules/
+dist/
+release/
+build/
+package-lock.json
+yoimiya.gif
+characters/yoimiya/yoimiya.webp

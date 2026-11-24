@@ -10,21 +10,12 @@
  *   - electron-store 锁定 v8（最后一个 CommonJS 主版本，9+ 为纯 ESM）
  */
 
-let ElectronStore;
-try {
-  // 在纯 Node（单元测试）环境 require('electron') 只会得到路径字符串，
-  // 真正初始化放到 initStore() 里由主进程调用
-  ElectronStore = null;
-} catch (_) {
-  ElectronStore = null;
-}
-
 const DEFAULTS = Object.freeze({
-  soundEnabled: true,          // 音效开关
-  alwaysOnTop: true,           // 始终置顶
-  autoHideOnFullscreen: true,  // 全屏应用时自动隐藏
-  volume: 100,                 // 音量 0-100
-  windowPosition: null,        // [x, y]（null = 使用默认右下角）
+  soundEnabled: true, // 音效开关
+  alwaysOnTop: true, // 始终置顶
+  autoHideOnFullscreen: true, // 全屏应用时自动隐藏
+  volume: 100, // 音量 0-100
+  windowPosition: null, // [x, y]（null = 使用默认右下角）
 });
 
 let storeInstance = null;

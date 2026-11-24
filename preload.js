@@ -50,15 +50,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ---- 查询初始状态（渲染进程主动调用） ----
   getSoundState: () => ipcRenderer.invoke('get-sound-state'),
-  getSettings:   () => ipcRenderer.invoke('get-settings'),
+  getSettings: () => ipcRenderer.invoke('get-settings'),
 
   // ---- 窗口拖动（主进程绝对坐标 + rAF 节流） ----
   // start：主进程记录光标起点+窗口起点
   // move ：主进程用 getCursorScreenPoint() 计算增量并移动窗口
   // end  ：拖拽结束，清理主进程状态
   dragWindowStart: () => ipcRenderer.send('drag-start'),
-  dragWindowMove:  () => ipcRenderer.send('drag-move'),
-  dragWindowEnd:   () => ipcRenderer.send('drag-end'),
+  dragWindowMove: () => ipcRenderer.send('drag-move'),
+  dragWindowEnd: () => ipcRenderer.send('drag-end'),
 
   // ---- 鼠标穿透切换（事件驱动，无延迟；全屏隐藏期间主进程会忽略） ----
   notifyMouseEnter: () => ipcRenderer.send('mouse-enter-widget'),

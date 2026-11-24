@@ -10,13 +10,7 @@
     "『英雄形态』的宵宫姐姐登场！邪恶必散，正义必胜！",
     "一起去玩吧！😆"
   ],
-  "voices": [
-    "voice1.mp3",
-    "voice2.mp3",
-    "voice3.mp3",
-    "voice4.mp3",
-    "voice5.mp3"
-  ],
+  "voices": ["voice1.mp3", "voice2.mp3", "voice3.mp3", "voice4.mp3", "voice5.mp3"],
   "bubbleStyle": {
     "bg": "#FFFDF7",
     "border": "#F0C040",
