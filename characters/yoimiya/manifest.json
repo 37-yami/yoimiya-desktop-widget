@@ -2,7 +2,7 @@
   "name": "yoimiya",
   "displayName": "长野原宵宫",
   "version": 1,
-  "sprite": "yoimiya.gif",
+  "sprite": "characters/yoimiya/yoimiya.webp",
   "lines": [
     "烟花易逝，人情长存！✨",
     "风好大，声音都被吹回来啦～🎆",
