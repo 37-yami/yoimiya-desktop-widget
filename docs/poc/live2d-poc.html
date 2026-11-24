@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>Live2D PoC — pixi-live2d-display 跑通验证（P1-B2）</title>
+  <style>
+    body {
+      margin: 0;
+      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      color: #ffe8cc;
+      font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    #status {
+      margin: 12px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.35);
+      font-size: 14px;
+    }
+    #status.ok { color: #7CFC98; }
+    #status.err { color: #ff8a80; }
+    canvas { display: block; }
+    #controls { margin: 10px; }
+    button {
+      margin: 0 6px;
+      padding: 8px 14px;
+      border: 1px solid #f0c040;
+      border-radius: 8px;
+      background: transparent;
+      color: #f0c040;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:hover { background: rgba(240, 192, 64, 0.15); }
+  </style>
+</head>
+<body>
+  <div id="status">初始化中…</div>
+  <div id="controls">
+    <button data-motion="tap_body">动作：tap_body</button>
+    <button data-motion="flick_head">动作：flick_head</button>
+    <button data-motion="idle">动作：idle</button>
+    <button data-emotion="happy">情绪联动：happy</button>
+    <button data-emotion="excited">情绪联动：excited</button>
+  </div>
+
+  <!--
+    P1-B2 PoC：验证 pixi-live2d-display 框架可行性
+    · pixi.js 锁 6.x（pixi-live2d-display@0.4 的 peer 要求，7/8 有兼容问题）
+    · Cubism 4 模型必须先加载 live2dcubismcore（官方免费运行时）
+    · 示例模型：Haru（pixi-live2d-display 官方测试资产，Cubism 4）
+    · 打开方式：浏览器直接打开本文件，或 npm run dev 后访问（需联网加载 CDN）
+  -->
+  <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.10/dist/browser/pixi.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/index.min.js"></script>
+  <script>
+    // 在 window 上暴露（UMD 构建的导出名）
+    const { PIXI } = window;
+    const { Live2DModel } = window.PIXI.live2d;
+
+    const statusEl = document.getElementById('status');
+    const setStatus = (text, cls) => {
+      statusEl.textContent = text;
+      statusEl.className = cls || '';
+    };
+
+    // 与主应用一致的情绪→动作映射（P1-C 联动验证用）
+    const MOTION_MAP = { happy: 'tap_body', excited: 'flick_head', sleepy: 'idle' };
+
+    (async () => {
+      try {
+        setStatus('加载 pixi 应用…');
+        const app = new PIXI.Application({
+          backgroundAlpha: 0,
+          width: 400,
+          height: 640,
+        });
+        document.body.appendChild(app.view);
+
+        setStatus('加载 Live2D 模型（Haru, Cubism 4）…');
+        const model = await Live2DModel.from(
+          'https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display/test/assets/haru/haru_greeter_t03.model3.json'
+        );
+        app.stage.addChild(model);
+
+        // 等比例缩放到画布
+        const scale = Math.min(400 / model.internalModel.originalWidth, 640 / model.internalModel.originalHeight);
+        model.scale.set(scale);
+        model.x = (400 - model.internalModel.originalWidth * scale) / 2;
+
+        // 模型可拖拽 + 点击身体触发动作（库自带交互能力）
+        model.draggable = true;
+        model.tap = () => model.motion('tap_body');
+
+        setStatus('✅ Live2D 模型加载成功（PoC 目标达成）：可拖拽 / 可触发动作 / 情绪映射就绪', 'ok');
+
+        document.querySelectorAll('button[data-motion]').forEach((btn) => {
+          btn.addEventListener('click', () => model.motion(btn.dataset.motion));
+        });
+        document.querySelectorAll('button[data-emotion]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const motion = MOTION_MAP[btn.dataset.emotion] || 'idle';
+            model.motion(motion);
+            setStatus(`情绪 ${btn.dataset.emotion} → 动作 ${motion}`, 'ok');
+          });
+        });
+      } catch (err) {
+        setStatus('❌ Live2D PoC 失败：' + err.message, 'err');
+        console.error(err);
+      }
+    })();
+  </script>
+</body>
+</html>

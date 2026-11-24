@@ -4,24 +4,27 @@
 > 透明悬浮 · 语音互动 · 全屏避让 · 拖拽移动 · 绿色免安装
 
 <p align="center">
-  <img src="yoimiya.gif" alt="宵宫挂件截图" width="200">
+  <img src="characters/yoimiya/yoimiya.webp" alt="宵宫挂件截图" width="200">
 </p>
 
 ---
 
 ## ✨ 功能特性
 
-| 功能              | 说明                                                       |
-| ----------------- | ---------------------------------------------------------- |
-| 🪟 **透明悬浮**   | 无边框、背景完全透明，只显示角色本体                       |
-| 🎤 **语音互动**   | 点击角色播放随机台词，5 句宵宫原声                         |
-| 💬 **漫画气泡**   | 自适应文字长度，弹跳动画显隐                               |
-| 🖱️ **自由拖拽**   | 按住角色任意位置拖动，自动限制在屏幕内，高 DPI 缩放不失灵  |
-| 🎮 **全屏避让**   | 检测到全屏应用自动降级透明且完全不可交互，退出游戏自动恢复 |
-| 🔔 **系统托盘**   | 隐藏后托盘图标一键恢复，可一键回到默认位置                 |
-| ⚙️ **右键菜单**   | 音效开关 / 全屏避让 / 置顶切换 / 回到默认位置 / 开发者工具 |
-| ⚡ **点击穿透**   | 透明区域不阻挡桌面图标和其他窗口                           |
-| 📦 **绿色免安装** | 解压即用，自带启动器与文件夹内快捷方式生成脚本             |
+| 功能                   | 说明                                                              |
+| ---------------------- | ----------------------------------------------------------------- |
+| 🪟 **透明悬浮**        | 无边框、背景完全透明，只显示角色本体                              |
+| 🎤 **语音互动**        | 点击角色播放随机台词，5 句宵宫原声                                |
+| 💬 **漫画气泡**        | 自适应文字长度，弹跳动画显隐，情绪变色                            |
+| 🖱️ **自由拖拽**        | 按住角色任意位置拖动，松手带惯性滑行与边界回弹，高 DPI 不失灵     |
+| 🎮 **全屏避让**        | 检测到全屏应用自动降级透明且完全不可交互，退出游戏自动恢复        |
+| 🔔 **系统托盘**        | 隐藏后托盘图标一键恢复，可一键回到默认位置（16/32 双尺寸图标）    |
+| ⚙️ **右键菜单**        | 音效 / 全屏避让 / 置顶 / 音量滑条 / AI 对话 / 回到默认位置        |
+| ⚡ **点击穿透**        | 透明区域不阻挡桌面图标和其他窗口                                  |
+| 💾 **设置持久化**      | 位置 / 音量 / 开关状态重启后全部恢复                              |
+| 😴 **待机台词**        | 长时间未交互 / 整点 / 深夜触发角色自言自语                        |
+| 🤖 **AI 对话（试点）** | 可选接入 DeepSeek，流式回复 + 情绪/动作联动，失败自动回落本地台词 |
+| 📦 **绿色免安装**      | 解压即用，自带启动器与文件夹内快捷方式生成脚本                    |
 
 ---
 
@@ -29,29 +32,28 @@
 
 ```
 yoimiya-desktop-widget/
-├── main.js                    ← Electron 主进程（窗口 / 托盘 / 右键菜单 / 全屏检测 / 拖拽 / IPC）
+├── main.js                    ← Electron 主进程（窗口 / 托盘 / 菜单 / 全屏检测 / 拖拽+惯性 / LLM/TTS 接线）
 ├── preload.js                 ← contextBridge 安全桥接（渲染 ↔ 主进程通信）
-├── yoimiya-widget.html        ← 渲染进程（CSS 动画 + JS 交互 + 台词 + 音频逻辑）
-├── package.json               ← 项目配置 + npm 脚本 + electron-builder 打包配置
-├── package-lock.json          ← 依赖版本锁定
-├── yoimiya.gif                ← 宵宫角色 GIF（21 MB，可替换为其他角色的同格式图片）
-├── tray-icon.png              ← 系统托盘橙色图标（16×16）
-├── audio/                     ← 语音文件夹
-│   ├── voice1.MP3             ← "烟花易逝，人情长存！✨" (63 KB)
-│   ├── voice2.MP3             ← "风好大，声音都被吹回来啦～🎆" (119 KB)
-│   ├── voice3.MP3             ← "哈哈，看我搓个雪球，咻——💥" (94 KB)
-│   ├── voice4.MP3             ← "『英雄形态』的宵宫姐姐登场！邪恶必散，正义必胜！" (126 KB)
-│   └── voice5.MP3             ← "一起去玩吧！😆" (53 KB)
-├── scripts/                   ← 脚本（打包 / 启动器 / 快捷方式生成）
-│   ├── pack-green.ps1         ← 一键构建绿色包（win-unpacked + 启动器 → zip，npm run build:green）
-│   ├── run-widget.cmd         ← 相对路径启动器（绿色包内双击即运行）
-│   ├── create-shortcut.cmd    ← 快捷方式生成器（绿色包内生成指向 exe 的「宵宫挂件.lnk」）
-│   └── create-source-shortcut.cmd ← 快捷方式生成器（项目根目录生成指向 electron.exe 的源码启动 lnk）
-├── build/
-│   └── icon.ico               ← 应用图标（取自 yoimiya.gif 静态帧，可自行替换）
-├── .gitignore
-├── CHANGELOG.md               ← 更新日志
-└── README.md
+├── yoimiya-widget.html        ← 渲染进程（CSS 动画 + 交互 + AI 气泡 + idle 状态机 + 音量滑条）
+├── config.js                  ← 窗口尺寸 / 边距 / 检测阈值等全局常量
+├── store.js                   ← 设置持久化（electron-store 包装，含内存兜底）
+├── env.js                     ← 开发模式判定 / ELECTRON_RUN_AS_NODE 清理
+├── llm.js                     ← DeepSeek 兼容客户端（SSE 流式 + JSON 三元组解析 + 流式切句）
+├── tts.js                     ← GPT-SoVITS api_v2 客户端（PoC，服务不在线自动降级）
+├── characters/yoimiya/        ← ★ 角色包（换角色 = 换目录，渲染层零改动）
+│   ├── manifest.json          ← { name, sprite, lines[], voices[], bubbleStyle }
+│   ├── yoimiya.webp           ← 透明动画（1.4MB / 63帧 / 480px / 16.7fps）
+│   └── voices/voice1-5.mp3    ← 官方语音（小写 .mp3，asar 兼容）
+├── tray-icon.png / -32.png    ← 托盘图标（16×16 + 32×32 高 DPI）
+├── scripts/                   ← 构建 / 启动器 / 资源管线 / PoC 验证脚本
+│   ├── optimize_sprite.py     ← GIF→去黑底→透明动画 WebP 管线（rembg u2net，chroma 兜底）
+│   ├── verify_sprite.py       ← 资源验收（体积/帧率/尺寸/四角 alpha）
+│   └── test-deepseek.mjs      ← LLM 全链路实测脚本
+├── tests/                     ← node --test 单元测试（配置/存储/env/llm/tts）
+├── docs/poc/                  ← P1 AI 试点 PoC 报告 + NOTES.md
+├── .env.local                 ← AI 接口配置（gitignored，不入库）
+├── build/icon.ico             ← 应用图标
+└── package.json
 ```
 
 > ⚠️ `node_modules/` 和 `dist/` 不在仓库中。前者通过 `npm install` 生成，后者通过 `npm run build:dir` 生成。
@@ -126,13 +128,36 @@ npm start
 
 ## 🎵 当前台词
 
+台词与语音由角色包 `characters/yoimiya/manifest.json` 驱动（`lines[i]` 与 `voices[i]` 一一对应）：
+
 | 索引 | 台词                                             | 音频         |
 | ---- | ------------------------------------------------ | ------------ |
-| 0    | 烟花易逝，人情长存！✨                           | `voice1.MP3` |
-| 1    | 风好大，声音都被吹回来啦～🎆                     | `voice2.MP3` |
-| 2    | 哈哈，看我搓个雪球，咻——💥                       | `voice3.MP3` |
-| 3    | 『英雄形态』的宵宫姐姐登场！邪恶必散，正义必胜！ | `voice4.MP3` |
-| 4    | 一起去玩吧！😆                                   | `voice5.MP3` |
+| 0    | 烟花易逝，人情长存！✨                           | `voice1.mp3` |
+| 1    | 风好大，声音都被吹回来啦～🎆                     | `voice2.mp3` |
+| 2    | 哈哈，看我搓个雪球，咻——💥                       | `voice3.mp3` |
+| 3    | 『英雄形态』的宵宫姐姐登场！邪恶必散，正义必胜！ | `voice4.mp3` |
+| 4    | 一起去玩吧！😆                                   | `voice5.mp3` |
+
+---
+
+## 🤖 AI 对话（P1 试点，可选）
+
+右键菜单勾选「💬 AI 对话」后，点击角色即调用 LLM 生成符合宵宫性格的回复
+（流式逐句显示 + 情绪联动气泡/动作）。**任何失败都会自动回落本地台词与语音，
+挂件本体永不依赖外部服务。**
+
+### 配置 `.env.local`（项目根目录，已被 .gitignore 忽略）
+
+```ini
+DEEPSEEK_API_KEY=sk-xxxx
+DEEPSEEK_MODEL=deepseek-flash
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+```
+
+- 官方接口已验证可用模型：`deepseek-flash` / `deepseek-v4-pro`；
+- 使用第三方中转站时改 `DEEPSEEK_BASE_URL` 与对应模型名即可；
+- 验证命令：`node scripts/test-deepseek.mjs`
+- 语音 AI 化（GPT-SoVITS 音色克隆）与 Live2D 等 PoC 见 `docs/poc/` 目录报告。
 
 ---
 
@@ -140,23 +165,30 @@ npm start
 
 ### 修改台词
 
-编辑 `yoimiya-widget.html`，搜索 `const MESSAGES` 找到台词数组：
+编辑角色包 `characters/yoimiya/manifest.json` 的 `lines` 数组
+（`voices` 数组与之一一对应，增减条目记得同步放音频文件）：
 
-```js
-const MESSAGES = [
-  '你的台词 1', // 索引 0 → audio/voice1.MP3
-  '你的台词 2', // 索引 1 → audio/voice2.MP3
-  // 增减条目后记得同步调整 audio/ 中的文件
-];
+```json
+{
+  "lines": ["你的台词 1", "你的台词 2"],
+  "voices": ["voice1.mp3", "voice2.mp3"]
+}
 ```
 
 ### 替换语音
 
-将 MP3 文件放入 `audio/` 文件夹，命名规则 `voice1.MP3` `voice2.MP3` …（**扩展名必须大写 `.MP3`**——打包后 asar 虚拟文件系统区分大小写）。
+将 MP3 文件放入 `characters/yoimiya/voices/`，命名 `voice1.mp3` `voice2.mp3` …
+（**扩展名统一小写 `.mp3`**——打包后 asar 虚拟文件系统区分大小写）。
 
-### 替换角色图片
+### 替换角色形象
 
-将新的 GIF/PNG 命名为 `yoimiya.gif`，替换项目根目录下的原文件即可（建议使用自带透明背景的素材，观感最佳）。
+- **方式一（推荐）**：替换 `characters/yoimiya/yoimiya.webp`（带透明通道的动画 WebP/APNG/GIF 均可），
+  同步更新 `manifest.json` 的 `sprite` 字段；
+- **方式二（重新生成）**：放置源 GIF 后运行资源管线
+  `python scripts/optimize_sprite.py`（自动去黑底 + 压缩，
+  需 `pip install rembg onnxruntime`，或 `--method chroma` 用色度键控兜底），
+  产物验收：`python scripts/verify_sprite.py`；
+- 完整换角色：新建 `characters/<name>/` 目录（manifest + 素材 + voices），渲染层零改动。
 
 > 如需同步更换应用图标：用 GIF 任一帧（建议选完整姿势帧）制作多尺寸 ico（16/32/48/64/128/256）覆盖 `build/icon.ico`，重新打包后 exe / 快捷方式即为新图标。
 
@@ -193,6 +225,9 @@ const MESSAGES = [
 | `npm start`           | 启动开发版                                |
 | `npm run start:win`   | 启动（强制清除 ELECTRON_RUN_AS_NODE）     |
 | `npm run dev`         | 启动 + 开发者工具                         |
+| `npm test`            | 单元测试（node --test）                   |
+| `npm run lint`        | ESLint 检查                               |
+| `npm run format`      | Prettier 格式化                           |
 | `npm run build:green` | 构建绿色免安装包 zip（推荐分发用）        |
 | `npm run build:dir`   | 只构建 `dist/win-unpacked/` 文件夹        |
 | `npm run build`       | 构建单文件 portable exe（需 GitHub 连通） |
@@ -213,8 +248,9 @@ npm start
 ### 音频没有声音？
 
 1. 右键菜单 → 勾选「🔊 开启音效」
-2. 确认 `audio/` 中文件名扩展名为大写 `.MP3`
-3. 打开开发者工具 → Console 面板查看是否有音频加载警告
+2. 确认 `characters/yoimiya/voices/` 中文件名扩展名为小写 `.mp3`
+3. 右键菜单 → 「🎵 音量调节」确认音量不为 0
+4. 开发模式下打开开发者工具 → Console 面板查看是否有音频加载警告
 
 ### 全屏游戏时挂件不消失？
 
@@ -238,6 +274,17 @@ v1.1.0 起拖拽已自动限制在屏幕工作区内，正常情况下不会再�
 
 ---
 
+## 📄 版权与发布边界（必读）
+
+- 宵宫（Yoimiya）形象与官方语音的版权归 **miHoYo / HoYoverse 及官方 CV** 所有；
+- 本项目仅限**个人学习与自用**，属于社区默许的灰色地带；
+- **严禁商业化，严禁公开分发克隆音色模型或 AI 生成的角色素材包**；
+- 如需公开发布，建议默认资源替换为原创角色或免费可商用模型，宵宫作为
+  「用户自行导入的角色包」分发；
+- Release 附带 SHA256 校验文件，避免杀软静默拦截造成无提示损坏。
+
+---
+
 ## 📄 License
 
-MIT
+MIT（见 [LICENSE](LICENSE)）

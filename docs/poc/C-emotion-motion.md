@@ -1,0 +1,36 @@
+# P1-C PoC 报告：情绪-动作联动
+
+## 尝试了什么
+
+LLM 输出的 `emotion` + `motion` 同时驱动三层表现，端到端打通 ≥2 个情绪
+（实际实现 5 情绪 + 3 动作全覆盖）：
+
+| 层       | 机制                                                                          | 实现位置                                                        |
+| -------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| 气泡配色 | `emotion-*` 类覆盖 `--bubble-border/--bubble-bg` CSS 变量（尾巴三角自动跟随） | CSS + `applyEmotion()`                                          |
+| 角色动作 | `motion-wave/jump/laugh` 关键帧动画（2.2s 后自动移除类）                      | CSS + `applyEmotion()`                                          |
+| 触发源   | LLM 三元组 / 本地台词随机 / idle 系统台词                                     | `requestAiReply` / `showBubble` / `showSystemBubbleWithEmotion` |
+
+## 情绪 → 视觉映射
+
+- `happy` 金橙（默认配色）
+- `excited` 橙红边框
+- `shy` 粉色系
+- `sad` 蓝灰系
+- `sleepy` 蓝紫系 + 文字变暗（深夜/待机台词使用）
+
+## 无 LLM 也可验证（本地规则表路径）
+
+- 点击角色（AI 关闭时）→ happy + 35% 概率 wave；
+- 整点台词 → happy + wave；
+- 深夜/待机台词 → sleepy 配色。
+
+即**关闭所有 AI 服务，情绪联动依旧可演示**（满足验收第 4 条的降级要求）。
+
+## 结果与建议
+
+- ✅ 单元层面：emotion/motion 白名单在 `llm.js` 有测试覆盖（回落默认值）；
+- ✅ 链路层面：LLM 实测返回 `{"emotion":"excited","motion":"jump"}` → 类名注入代码就绪；
+- ⚠️ 视觉效果需本机 `npm start` 观察（自动化环境无 GUI）；
+- 建议：TTS 接通后给 `emotion` 增加参考音频分桶（`voices/ref/<emotion>.wav`，
+  `tts.js` 已按此约定组装 `ref_audio_path`）。
