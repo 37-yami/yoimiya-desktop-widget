@@ -7,6 +7,8 @@
 
 - 原因：需要 ComfyUI/SD WebUI + SDXL 底模 + 宵宫 LoRA（Civitai），显存与下载量大，
   本次环境不具备；且生成后仍需 rembg 抠图（该环节已具备）。
+- 原因②（2026-11-24 补充）：尝试用会话内置图像生成服务生成**原创**烟花祭典少女立绘
+  （按版权边界不直接复制宵宫设计），服务返回 `Invalid credential`，同样不可用。
 - 替代：P0 资源管线（rembg + WebP）已把原 GIF 黑边问题解决，B1 优先级下降。
 - 后续：按任务书 Prompt（`(masterpiece, best quality), yoimiya \(genshin impact\), full body…`
   - ControlNet OpenPose）在本地 SD 环境出 3–5 姿势，再跑 `scripts/optimize_sprite.py` 的抠图段。

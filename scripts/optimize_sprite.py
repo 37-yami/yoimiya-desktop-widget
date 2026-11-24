@@ -30,7 +30,7 @@ ROOT = Path(__file__).resolve().parent.parent
 # ------------------------------------------------------------
 # ②-a rembg 抠图（惰性导入，缺依赖时给出可读错误）
 # ------------------------------------------------------------
-def build_rembg_remover():
+def build_rembg_remover(model_name="isnet-general-use"):
     try:
         from rembg import new_session, remove
     except ImportError as e:
@@ -39,7 +39,8 @@ def build_rembg_remover():
             "安装: python -m pip install rembg onnxruntime\n"
             "或改用兜底方案: python scripts/optimize_sprite.py --method chroma"
         ) from e
-    session = new_session("u2net")  # 首次自动下载模型
+    print(f"初始化 rembg ({model_name}) ...")
+    session = new_session(model_name)
     return lambda img: remove(img, session=session, post_process_mask=True)
 
 
@@ -70,6 +71,11 @@ def main() -> int:
     ap.add_argument("--src", default=str(ROOT / "yoimiya.gif"))
     ap.add_argument("--out", default=str(ROOT / "characters" / "yoimiya" / "yoimiya.webp"))
     ap.add_argument("--method", choices=["rembg", "chroma"], default="rembg")
+    ap.add_argument(
+        "--model",
+        default="isnet-general-use",
+        help="rembg 模型：isnet-general-use（默认，细部保留好）/ u2net（快，易丢呆毛发饰）/ birefnet-general（最准，~1.4GB）",
+    )
     ap.add_argument("--size", type=int, default=480, help="目标边长(px)")
     ap.add_argument("--fps", type=int, default=16, help="目标帧率")
     ap.add_argument("--quality", type=int, default=80, help="WebP 有损质量")
@@ -98,8 +104,7 @@ def main() -> int:
 
     remover = None
     if args.method == "rembg":
-        print("初始化 rembg (u2net) ...")
-        remover = build_rembg_remover()
+        remover = build_rembg_remover(args.model)
 
     frames = []
     for i, idx in enumerate(indices):

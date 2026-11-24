@@ -20,3 +20,6 @@ Thumbs.db
 # 鐜鍙橀噺
 .env
 .env.local
+
+# 本地源素材（重生成用，不入库）
+.source-assets/
