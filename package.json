@@ -41,6 +41,7 @@
       "tts.js",
       "yoimiya-widget.html",
       "tray-icon.png",
+      "tray-icon-32.png",
       "characters/**"
     ],
     "win": {

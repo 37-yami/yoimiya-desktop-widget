@@ -17,7 +17,16 @@
  *   npm run dev      → 开发模式（自动打开 DevTools）
  */
 
-const { app, BrowserWindow, Menu, Tray, screen, ipcMain, nativeImage } = require('electron');
+const {
+  app,
+  BrowserWindow,
+  Menu,
+  Tray,
+  screen,
+  ipcMain,
+  nativeImage,
+  powerMonitor,
+} = require('electron');
 const path = require('path');
 const { clearRunAsNode, isDevMode } = require('./env');
 
@@ -29,6 +38,7 @@ const {
   EDGE_RIGHT,
   EDGE_BOTTOM,
   FULLSCREEN_THRESHOLD,
+  FULLSCREEN_POLL_INTERVAL,
 } = require('./config');
 const { initStore, getSetting, setSetting } = require('./store');
 const {
@@ -220,6 +230,14 @@ function buildContextMenu() {
     },
     { type: 'separator' },
     {
+      label: '🎵 音量调节',
+      click: () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('open-volume-panel');
+        }
+      },
+    },
+    {
       label: llmAvailable()
         ? '💬 AI 对话（DeepSeek）'
         : '💬 AI 对话（未配置/已停用）',
@@ -280,65 +298,86 @@ function isFullscreenAppActive() {
   }
 }
 
+/**
+ * 单轮全屏检测（提取为独立函数：轮询与事件钩子共用）。
+ * 事件驱动增强：display-metrics-changed / 系统唤醒恢复 时立即触发，
+ * 不必等下一个轮询周期。
+ * （注：真正的 RegisterShellHookWindow 需要 Win32 原生模块，
+ *   纯 JS 侧采用「低频轮询兜底 + 关键事件即时检查」折中，见 docs/poc/NOTES.md）
+ */
+function checkFullscreenOnce() {
+  if (!autoHideOnFullscreen) return;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  let fullscreen;
+  try {
+    fullscreen = isFullscreenAppActive();
+  } catch (_) {
+    return; // 显示配置切换中（游戏退出/进入），跳过本轮
+  }
+
+  if (fullscreen) {
+    fullscreenCounter = Math.min(fullscreenCounter + 1, FULLSCREEN_THRESHOLD);
+  } else {
+    // 恢复时加速归零（每次减 2）
+    fullscreenCounter = Math.max(fullscreenCounter - 2, 0);
+  }
+
+  // 状态切换只做一次（fullscreenHidden 标记保证幂等）
+  try {
+    // 全屏时降级：取消置顶 + 完全透明 + 完全不可交互
+    // 拖拽进行中（dragState 非空）则跳过本轮，
+    // 避免拖拽中途切断鼠标捕获导致 mouseup 丢失
+    if (
+      fullscreenCounter >= FULLSCREEN_THRESHOLD &&
+      !hiddenManually &&
+      !fullscreenHidden &&
+      !dragState
+    ) {
+      fullscreenHidden = true;
+      mousePassthroughLocked = true; // 🔒 锁定：屏蔽渲染进程的穿透切换
+      mainWindow.setAlwaysOnTop(false);
+      mainWindow.setOpacity(0);
+      mainWindow.setIgnoreMouseEvents(true); // 不带 forward：隐形期间不接收任何鼠标事件
+    }
+
+    // 全屏结束：恢复可见 + 恢复穿透检测模式（forward）
+    if (fullscreenCounter === 0 && !hiddenManually && fullscreenHidden) {
+      fullscreenHidden = false;
+      mousePassthroughLocked = false;
+      mainWindow.setOpacity(1);
+      mainWindow.setIgnoreMouseEvents(true, { forward: true });
+      if (alwaysOnTop) {
+        mainWindow.setAlwaysOnTop(true, 'screen-saver');
+      }
+    }
+  } catch (_) {
+    // 窗口操作失败（显示配置切换瞬间），下轮重试
+  }
+}
+
 function startFullscreenPolling() {
   if (fullscreenPollTimer) return;
 
-  fullscreenPollTimer = setInterval(() => {
-    if (!autoHideOnFullscreen) return;
-    if (!mainWindow || mainWindow.isDestroyed()) return;
+  fullscreenPollTimer = setInterval(checkFullscreenOnce, FULLSCREEN_POLL_INTERVAL);
 
-    let fullscreen;
-    try {
-      fullscreen = isFullscreenAppActive();
-    } catch (_) {
-      return; // 显示配置切换中（游戏退出/进入），跳过本轮
-    }
-
-    if (fullscreen) {
-      fullscreenCounter = Math.min(fullscreenCounter + 1, FULLSCREEN_THRESHOLD);
-    } else {
-      // 恢复时加速归零（每次减 2）
-      fullscreenCounter = Math.max(fullscreenCounter - 2, 0);
-    }
-
-    // 状态切换只做一次（fullscreenHidden 标记保证幂等）
-    try {
-      // 全屏时降级：取消置顶 + 完全透明 + 完全不可交互
-      // 拖拽进行中（dragState 非空）则跳过本轮，
-      // 避免拖拽中途切断鼠标捕获导致 mouseup 丢失
-      if (
-        fullscreenCounter >= FULLSCREEN_THRESHOLD &&
-        !hiddenManually &&
-        !fullscreenHidden &&
-        !dragState
-      ) {
-        fullscreenHidden = true;
-        mousePassthroughLocked = true; // 🔒 锁定：屏蔽渲染进程的穿透切换
-        mainWindow.setAlwaysOnTop(false);
-        mainWindow.setOpacity(0);
-        mainWindow.setIgnoreMouseEvents(true); // 不带 forward：隐形期间不接收任何鼠标事件
-      }
-
-      // 全屏结束：恢复可见 + 恢复穿透检测模式（forward）
-      if (fullscreenCounter === 0 && !hiddenManually && fullscreenHidden) {
-        fullscreenHidden = false;
-        mousePassthroughLocked = false;
-        mainWindow.setOpacity(1);
-        mainWindow.setIgnoreMouseEvents(true, { forward: true });
-        if (alwaysOnTop) {
-          mainWindow.setAlwaysOnTop(true, 'screen-saver');
-        }
-      }
-    } catch (_) {
-      // 窗口操作失败（显示配置切换瞬间），下轮重试
-    }
-  }, 2000);
+  // ---- 事件驱动增强：关键时刻立即检查，不等轮询 ----
+  screen.on('display-metrics-changed', checkFullscreenOnce);
+  if (powerMonitor) {
+    powerMonitor.on('resume', checkFullscreenOnce);
+    powerMonitor.on('unlock-screen', checkFullscreenOnce);
+  }
 }
 
 function stopFullscreenPolling() {
   if (fullscreenPollTimer) {
     clearInterval(fullscreenPollTimer);
     fullscreenPollTimer = null;
+  }
+  screen.removeAllListeners('display-metrics-changed');
+  if (powerMonitor) {
+    powerMonitor.removeAllListeners('resume');
+    powerMonitor.removeAllListeners('unlock-screen');
   }
   fullscreenCounter = 0;
 }
@@ -392,8 +431,18 @@ function saveWindowPosition() {
 
 function createTray() {
   try {
-    const icon = nativeImage.createFromPath(TRAY_ICON_PATH);
-    tray = new Tray(icon);
+    // 双尺寸 representation：16×16（100% 缩放）+ 32×32（150/200% 高 DPI）
+    const icon16 = nativeImage.createFromPath(TRAY_ICON_PATH);
+    const icon32 = nativeImage.createFromPath(path.join(__dirname, 'tray-icon-32.png'));
+    if (!icon32.isEmpty()) {
+      icon16.addRepresentation({
+        scaleFactor: 2.0,
+        width: 32,
+        height: 32,
+        buffer: icon32.toPNG(),
+      });
+    }
+    tray = new Tray(icon16);
 
     // 托盘提示文字
     tray.setToolTip('宵宫桌面挂件 — 点击恢复显示');
@@ -432,8 +481,9 @@ function createTray() {
 function hideWindowToTray() {
   if (mainWindow && !mainWindow.isDestroyed()) {
     hiddenManually = true;
-    // 若隐藏时拖拽尚未结束，清理主进程拖拽状态
+    // 若隐藏时拖拽尚未结束，清理主进程拖拽状态与惯性滑行
     dragState = null;
+    stopInertia();
     mainWindow.hide();
     // 通知渲染进程（可暂停动画等，节省资源）
     mainWindow.webContents.send('window-hidden');
@@ -584,6 +634,7 @@ app.on('window-all-closed', () => {
 // 确保应用最终能退出（同时销毁托盘，避免 Windows 托盘图标残留）
 app.on('before-quit', () => {
   stopFullscreenPolling();
+  stopInertia();
   if (tray) {
     tray.destroy();
     tray = null;
@@ -607,6 +658,11 @@ ipcMain.handle('get-settings', () => {
     volume: getSetting('volume'),
     aiChatEnabled: aiChatEnabled && llmAvailable(),
   };
+});
+
+// 渲染进程音量滑条提交（持久化；setSetting 内部自动钳制 0-100）
+ipcMain.on('set-volume', (_event, value) => {
+  setSetting('volume', value);
 });
 
 // ============================================================
@@ -637,9 +693,11 @@ ipcMain.handle('llm-chat', async (_event, userText) => {
 ipcMain.on('drag-start', () => {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   if (mousePassthroughLocked || hiddenManually) return;
+  stopInertia(); // 新拖拽打断进行中的惯性滑行
   dragState = {
     startCursor: screen.getCursorScreenPoint(),
     startWindow: mainWindow.getPosition(),
+    samples: [], // 近期光标采样（惯性速度估算）
   };
 });
 
@@ -650,12 +708,103 @@ ipcMain.on('drag-move', () => {
   const y = dragState.startWindow[1] + (cursor.y - dragState.startCursor.y);
   // 钳制到显示器工作区内，防止拖出屏幕导致挂件"丢失"
   mainWindow.setPosition(...clampToWorkArea(x, y));
+
+  // 记录光标采样（最多保留 6 个点，约最近 100ms）
+  dragState.samples.push({ x: cursor.x, y: cursor.y, t: Date.now() });
+  if (dragState.samples.length > 6) dragState.samples.shift();
 });
 
 ipcMain.on('drag-end', () => {
+  startInertia(); // 松手惯性滑行（速度不足时内部直接跳过）
   dragState = null;
   saveWindowPosition(); // 💾 拖拽结束即保存位置
 });
+
+// ============================================================
+// 🛹 拖拽惯性滑行 + 边界回弹
+// ------------------------------------------------------------
+// 松手瞬间用最近光标采样估算速度（px/ms），随后按帧衰减：
+//   摩擦系数 0.92/帧（按 16.7ms 归一），撞到工作区边界时
+//   速度反转并衰减到 30%（回弹），速度低于阈值后停止并保存位置。
+// ============================================================
+let inertiaTimer = null;
+
+function stopInertia() {
+  if (inertiaTimer) {
+    clearInterval(inertiaTimer);
+    inertiaTimer = null;
+  }
+}
+
+function startInertia() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (!dragState || !dragState.samples || dragState.samples.length < 2) return;
+  if (hiddenManually || mousePassthroughLocked) return;
+
+  const samples = dragState.samples;
+  const first = samples[0];
+  const last = samples[samples.length - 1];
+  const dt = last.t - first.t;
+  if (dt <= 0) return;
+
+  let vx = (last.x - first.x) / dt; // px/ms
+  let vy = (last.y - first.y) / dt;
+  if (Math.hypot(vx, vy) < 0.15) return; // 速度太小：直接贴住，不滑行
+
+  let px = mainWindow.getPosition()[0];
+  let py = mainWindow.getPosition()[1];
+  let prevT = Date.now();
+  stopInertia();
+
+  inertiaTimer = setInterval(() => {
+    if (!mainWindow || mainWindow.isDestroyed() || hiddenManually) {
+      stopInertia();
+      return;
+    }
+    const now = Date.now();
+    const step = Math.min(now - prevT, 50); // 防后台节流造成大跳
+    prevT = now;
+
+    px += vx * step;
+    py += vy * step;
+
+    // 摩擦衰减（按 60fps 帧长归一）
+    const friction = Math.pow(0.92, step / 16.7);
+    vx *= friction;
+    vy *= friction;
+
+    // 工作区边界回弹（速度反转 × 0.3）
+    const wa = screen.getDisplayMatching({
+      x: Math.round(px),
+      y: Math.round(py),
+      width: WIDGET_WIDTH,
+      height: WIDGET_HEIGHT,
+    }).workArea;
+    if (px < wa.x) {
+      px = wa.x;
+      vx = -vx * 0.3;
+    }
+    if (px > wa.x + wa.width - WIDGET_WIDTH) {
+      px = wa.x + wa.width - WIDGET_WIDTH;
+      vx = -vx * 0.3;
+    }
+    if (py < wa.y) {
+      py = wa.y;
+      vy = -vy * 0.3;
+    }
+    if (py > wa.y + wa.height - WIDGET_HEIGHT) {
+      py = wa.y + wa.height - WIDGET_HEIGHT;
+      vy = -vy * 0.3;
+    }
+
+    mainWindow.setPosition(Math.round(px), Math.round(py));
+
+    if (Math.hypot(vx, vy) < 0.02) {
+      stopInertia();
+      saveWindowPosition();
+    }
+  }, 16);
+}
 
 // 鼠标进入挂件区域 → 关闭穿透，正常接收点击
 ipcMain.on('mouse-enter-widget', () => {

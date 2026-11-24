@@ -190,6 +190,47 @@
       }
     }
 
+    /* ============================================================
+       Volume Panel（P0-7：0-100 音量滑条，右键菜单唤起）
+       ============================================================ */
+    .volume-panel {
+      position: fixed;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10000;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      background: var(--bubble-bg);
+      border: 2px solid var(--bubble-border);
+      border-radius: 16px;
+      box-shadow:
+        0 4px 16px var(--yoimiya-shadow),
+        inset 0 1px 0 rgba(255, 255, 255, 0.6);
+      font-size: 12px;
+      color: var(--yoimiya-dark);
+      pointer-events: auto; /* body.electron-mode 关闭了指针事件，这里要打开 */
+    }
+
+    .volume-panel.show {
+      display: flex;
+      animation: bubbleBounceIn 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+    }
+
+    .volume-panel input[type='range'] {
+      width: 110px;
+      accent-color: var(--yoimiya-orange);
+      cursor: pointer;
+    }
+
+    .volume-panel .vol-value {
+      min-width: 26px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
     @keyframes bubbleBounceIn {
       0% {
         opacity: 0;
@@ -522,6 +563,13 @@
     <span style="top:38%;left:35%;animation-delay:2.1s"></span>
   </div>
 
+  <!-- Volume Panel（右键菜单「音量调节」唤起；独立于挂件容器，避免 float 动画的 transform 破坏 fixed 定位） -->
+  <div class="volume-panel" id="volumePanel">
+    <span id="volIcon">🔊</span>
+    <input type="range" id="volumeSlider" min="0" max="100" step="1" value="100" />
+    <span class="vol-value" id="volumeValue">100</span>
+  </div>
+
   <!-- ============================================================
        MAIN WIDGET
        ============================================================ -->
@@ -621,6 +669,7 @@
 
         // ③ 窗口隐藏时暂停音频（节省资源）
         window.electronAPI.onWindowHidden(() => {
+          widgetHidden = true; // 😴 隐藏期间不发系统台词
           if (currentAudio) {
             currentAudio.pause();
             currentAudio.currentTime = 0;
@@ -631,7 +680,8 @@
 
         // ④ 窗口恢复时不做额外操作（用户点击时自然会触发音频）
         window.electronAPI.onWindowShown(() => {
-          // 预留：可在此处恢复动画等
+          widgetHidden = false;
+          markInteract(); // 恢复视为一次交互，重置 idle 计时
         });
       }
 
@@ -1018,6 +1068,148 @@
       }
 
       // ========================================================
+      // 🎚️ 音量滑条（P0-7：0-100，右键菜单唤起，持久化）
+      // ========================================================
+
+      const volumePanel = document.getElementById('volumePanel');
+      const volumeSlider = document.getElementById('volumeSlider');
+      const volumeValue = document.getElementById('volumeValue');
+      const volIcon = document.getElementById('volIcon');
+      let volumeHideTimer = null;
+      const VOLUME_AUTO_HIDE_MS = 8000;
+
+      function setVolumeDisplay(v) {
+        volumeValue.textContent = v;
+        volIcon.textContent = v === 0 ? '🔇' : v < 50 ? '🔉' : '🔊';
+      }
+
+      function openVolumePanel() {
+        volumeSlider.value = Math.round(currentVolume * 100);
+        setVolumeDisplay(volumeSlider.value);
+        volumePanel.classList.add('show');
+        clearTimeout(volumeHideTimer);
+        volumeHideTimer = setTimeout(
+          () => volumePanel.classList.remove('show'),
+          VOLUME_AUTO_HIDE_MS
+        );
+      }
+
+      volumeSlider.addEventListener('input', () => {
+        const v = Number(volumeSlider.value);
+        currentVolume = v / 100;
+        setVolumeDisplay(v);
+        if (currentAudio) currentAudio.volume = currentVolume; // 实时作用于正在播放的音频
+        if (window.electronAPI && window.electronAPI.setVolume) {
+          window.electronAPI.setVolume(v); // 主进程持久化
+        }
+        clearTimeout(volumeHideTimer); // 有操作就续命
+        volumeHideTimer = setTimeout(
+          () => volumePanel.classList.remove('show'),
+          VOLUME_AUTO_HIDE_MS
+        );
+      });
+
+      // 滑条自身也要参与鼠标穿透切换（body.electron-mode 默认 pointer-events:none）
+      volumePanel.addEventListener('mouseenter', () => {
+        window.electronAPI?.notifyMouseEnter();
+      });
+      volumePanel.addEventListener('mouseleave', () => {
+        if (dragInfo) return;
+        window.electronAPI?.notifyMouseLeave();
+      });
+
+      if (window.electronAPI && window.electronAPI.onOpenVolumePanel) {
+        window.electronAPI.onOpenVolumePanel(openVolumePanel);
+      }
+
+      // ========================================================
+      // 😴 Idle 状态机（P0-7：长时间未交互/整点/深夜 → 规则表台词）
+      // ========================================================
+
+      const IDLE_CONFIG = {
+        idleAfterMs: 5 * 60 * 1000, // 5 分钟未交互 → 进入待机
+        idleRepeatEveryMs: 4 * 60 * 1000, // 待机期间每 4 分钟一句
+        nightHours: [23, 0, 1, 2, 3, 4, 5], // 深夜时段
+        nightRepeatEveryMs: 30 * 60 * 1000, // 深夜台词冷却 30 分钟
+      };
+
+      const IDLE_LINES = [
+        '呼……趁没人，悄悄练习一下新烟花的手势～',
+        '（小声哼着夏祭的曲子）',
+        '烟花筒也要定期保养才行呐～',
+        '（数着今天想到的烟花配色）',
+      ];
+      const HOUR_LINES = [
+        '整点报时！这一小时的烟花也请多指教～',
+        '咚——整点啦！要不要抬头看看天？',
+        '又是新的一小时，烟花工匠继续营业！',
+      ];
+      const NIGHT_LINES = [
+        '夜深了……烟花配方的灵感都来自星星呢✨',
+        '这么晚还不睡，明天要看烟花可起不来了哦？',
+        '唔……我要眯一会儿了，晚安～🎆',
+      ];
+
+      let lastInteractAt = Date.now();
+      let lastIdleBubbleAt = 0;
+      let lastNightBubbleAt = 0;
+      let lastHourNotified = -1;
+      let widgetHidden = false; // 托盘/全屏隐藏期间不发系统台词
+
+      function markInteract() {
+        lastInteractAt = Date.now();
+      }
+
+      function pickFrom(arr) {
+        return arr[Math.floor(Math.random() * arr.length)];
+      }
+
+      /** 系统台词气泡（idle/整点/深夜共用：只显示气泡，不播语音） */
+      function showSystemBubble(text) {
+        if (widgetHidden || aiBusy) return;
+        bubbleText.textContent = text;
+        bubble.classList.remove('hide', 'thinking');
+        void bubble.offsetWidth;
+        bubble.classList.add('show');
+        resetAutoHideTimer();
+      }
+
+      setInterval(
+        () => {
+          const now = Date.now();
+          const d = new Date();
+          const idleMs = now - lastInteractAt;
+
+          // ① 整点问候（每小时至多一次）
+          if (d.getMinutes() === 0 && lastHourNotified !== d.getHours()) {
+            lastHourNotified = d.getHours();
+            showSystemBubble(pickFrom(HOUR_LINES));
+            return;
+          }
+
+          // ② 深夜台词（冷却 30 分钟）
+          if (
+            IDLE_CONFIG.nightHours.includes(d.getHours()) &&
+            now - lastNightBubbleAt > IDLE_CONFIG.nightRepeatEveryMs
+          ) {
+            lastNightBubbleAt = now;
+            showSystemBubble(pickFrom(NIGHT_LINES));
+            return;
+          }
+
+          // ③ 长时间未交互 → 待机台词（冷却 4 分钟）
+          if (
+            idleMs > IDLE_CONFIG.idleAfterMs &&
+            now - lastIdleBubbleAt > IDLE_CONFIG.idleRepeatEveryMs
+          ) {
+            lastIdleBubbleAt = now;
+            showSystemBubble(pickFrom(IDLE_LINES));
+          }
+        },
+        30 * 1000
+      ); // 30s 检查一次（分钟级精度足够，开销可忽略）
+
+      // ========================================================
       // 🖱️ 事件绑定
       // ========================================================
 
@@ -1093,6 +1285,7 @@
       widget.addEventListener('mousedown', (e) => {
         if (e.button !== 0) return;
         e.preventDefault();   // 防止原生拖拽/文字选中干扰
+        markInteract();       // 🕐 刷新 idle 计时
         dragInfo = {
           startX: e.screenX,
           startY: e.screenY,

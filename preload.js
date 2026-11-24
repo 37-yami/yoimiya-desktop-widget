@@ -61,6 +61,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('ai-chat-toggled', (_event, enabled) => callback(enabled));
   },
 
+  // ---- 音量滑条（主进程菜单打开，渲染层交互，主进程持久化） ----
+  onOpenVolumePanel: (callback) => {
+    ipcRenderer.on('open-volume-panel', () => callback());
+  },
+  setVolume: (value) => ipcRenderer.send('set-volume', value),
+
   // ---- 窗口拖动（主进程绝对坐标 + rAF 节流） ----
   // start：主进程记录光标起点+窗口起点
   // move ：主进程用 getCursorScreenPoint() 计算增量并移动窗口
