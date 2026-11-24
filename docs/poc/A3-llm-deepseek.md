@@ -1,4 +1,4 @@
-# P1-A3 PoC 报告：DeepSeek LLM 对话（JSON 三元组输出）
+﻿# P1-A3 PoC 报告：DeepSeek LLM 对话（JSON 三元组输出）
 
 ## 尝试了什么
 
@@ -48,7 +48,7 @@ DEEPSEEK_BASE_URL=https://api.deepseek.com
 node scripts/test-deepseek.mjs --key <你的key> --model deepseek-flash
 ```
 
-## ⚠️ 用户提供的第二个 key（sk-PH5g…UDFMi）状态
+## ⚠️ 用户提供的第二个 key（用户提供的新 key（已匿名））状态
 
 - 该 key + 模型名 `deepseek-v4.1-flash` 在官方 `api.deepseek.com` 实测 **401 Unauthorized**；
 - 官方接口（用旧 key 验证）报错信息明确列出支持模型仅为 `deepseek-flash` / `deepseek-v4-pro`，

@@ -1,4 +1,4 @@
-# P0/P1 PoC 总备忘（NOTES）
+﻿# P0/P1 PoC 总备忘（NOTES）
 
 > 本文件汇总所有「尝试了、但没完全跑通」的路线及原因，
 > 避免后续重复踩坑。日期：2026-11-24，分支：dev。
@@ -16,7 +16,7 @@
 - 客户端/降级链路全部就绪（测试 5/5），但本机未安装整合包（数 GB）。
 - 见 `A1-gpt-sovits.md` 的三步后续建议。
 
-## DeepSeek 第二个 key（sk-PH5g…UDFMi + deepseek-v4.1-flash）— 暂不可用
+## DeepSeek 第二个 key（新 key + deepseek-v4.1-flash，key 已匿名）— 暂不可用
 
 - 官方 `api.deepseek.com` 401；官方支持模型仅 `deepseek-flash`/`deepseek-v4-pro`。
 - 判定为第三方中转站 key，**缺 base URL**，已写入 `.env.local` 待补。
