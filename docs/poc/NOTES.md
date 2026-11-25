@@ -18,10 +18,11 @@
 - 客户端/降级链路全部就绪（测试 5/5），但本机未安装整合包（数 GB）。
 - 见 `A1-gpt-sovits.md` 的三步后续建议。
 
-## DeepSeek 第二个 key（新 key + deepseek-v4.1-flash，key 已匿名）— 暂不可用
+## DeepSeek 第二个 key（新 key + deepseek-v4.1-flash，key 已匿名）— 已跑通
 
 - 官方 `api.deepseek.com` 401；官方支持模型仅 `deepseek-flash`/`deepseek-v4-pro`。
-- 判定为第三方中转站 key，**缺 base URL**，已写入 `.env.local` 待补。
+- **2026-11-25 已解决**：中转站 base URL = `https://tokenshare.net/v1`，全链路实测 PASS
+  （详见 `A3-llm-deepseek.md`）。该站仅 5 个文本模型，无生图端点。
 
 ## P0-7：全屏检测真正事件驱动（RegisterShellHookWindow）— 折中实现
 

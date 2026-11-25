@@ -48,13 +48,24 @@ DEEPSEEK_BASE_URL=https://api.deepseek.com
 node scripts/test-deepseek.mjs --key <你的key> --model deepseek-flash
 ```
 
-## ⚠️ 用户提供的第二个 key（用户提供的新 key（已匿名））状态
+## ✅ 第二个 key（用户提供的新 key + deepseek-v4.1-flash）— 已查清并跑通
 
-- 该 key + 模型名 `deepseek-v4.1-flash` 在官方 `api.deepseek.com` 实测 **401 Unauthorized**；
-- 官方接口（用旧 key 验证）报错信息明确列出支持模型仅为 `deepseek-flash` / `deepseek-v4-pro`，
-  **不存在 `v4.1-flash`**；
-- 结论：该 key 属第三方中转/代理服务，其模型列表里有 `deepseek-v4.1-flash`（DeepSeek-V4.1-Flash）。
-  **缺该服务的 base URL，无法调用**（已写入 `.env.local`，补上 `DEEPSEEK_BASE_URL` 即可切换）。
+- 该 key 在官方 `api.deepseek.com` 实测 **401**；官方接口支持模型仅 `deepseek-flash` / `deepseek-v4-pro`，
+  **不存在 `v4.1-flash`** → 判定属第三方中转站；
+- **2026-11-25 用户提供中转站地址，实测确认**：base URL = `https://tokenshare.net/v1`
+  （`/v1/models` 返回 200；根路径是网页后台，不能当 base URL）；
+- 中转站可用模型（共 5 个，全部文本模型）：`deepseek-v4.1-flash`、`glm5.3-nvfp4`、
+  `kimi-k3.1-pro`、`minimax-m3.1-flash`、`qwen38-nvfp4`；
+- `/v1/images/generations` 为路由级 404 → **该站无生图能力**；
+- 全链路实测 PASS：
+
+```
+[流式] 12 个增量包，首包延迟 1628ms
+[三元组] {"text":"今晚要去试做新的烟花哦，要不要一起来看？","emotion":"excited","motion":"jump"}
+```
+
+复现：`node scripts/test-deepseek.mjs --base-url https://tokenshare.net/v1`
+（`.env.local` 已切到该配置；key 不入库）。
 
 ## 优雅降级（已实现）
 
