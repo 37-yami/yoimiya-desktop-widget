@@ -6,7 +6,8 @@
 
 - **角色包架构**：台词/语音迁移到 `characters/yoimiya/`（manifest.json 驱动），换角色零改码；音频统一小写 `.mp3`（asar 大小写兼容）；立绘路径同样由 manifest 的 `sprite` 指定
 - **抠图管线（工具）**：`scripts/optimize_sprite.py` 支持 GIF 动图与单张立绘两种模式（rembg 多模型 + 色度键控兜底）。自动抠图在原 GIF 上效果不达标（u2net 丢呆毛发饰、isnet 空白误抠），根目录 `yoimiya.gif` 原图保留（未被应用引用），背景由使用者自行处理
-- **形象基线**：仓库默认形象改为 `characters/yoimiya/sprite.svg`（原创矢量角色，8KB）；根目录 21MB GIF 不再打包
+- **形象**：默认原形态（根目录 `yoimiya.gif`）；右键菜单「🎭 形象切换」可切到 AI 形态
+  （`characters/yoimiya/emotions/` 六张情绪立绘），选择持久化，重启首帧即为所选形态
 - **设置持久化**：electron-store 保存位置/音效/置顶/音量/AI 开关，重启全恢复（位置恢复自动钳制回工作区）
 - **调试入口收敛**：开发者工具/重新加载仅开发模式注入；`start:win` 环境变量残留修复
 - **工程化**：MIT LICENSE、ESLint + Prettier + jsconfig、GitHub Actions CI（lint + test + build:dir，tag 自动发布并附 SHA256）、`node --test` 单元测试 23 例
