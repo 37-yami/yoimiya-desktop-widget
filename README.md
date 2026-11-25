@@ -93,6 +93,41 @@ npm start
 > VSCode 终端默认设置了 `ELECTRON_RUN_AS_NODE=1`，导致 Electron 退化为纯 Node.js。  
 > 解决方法：使用 Windows 命令提示符或 PowerShell，或在 VSCode 中执行 `npm run start:win`。
 
+### 安装出错了怎么办
+
+**如果按上面的步骤安装或启动时出了问题，可以尝试把报错信息发给 AI 来解决**（GitHub Copilot、ChatGPT、通义千问、豆包等都可以）。提问时把**完整的报错文本**贴上去，并说明"在 Windows 上安装一个 Electron 桌面挂件的依赖时出错"，通常能直接得到可执行的解决命令。
+
+下面是一个已经有用户遇到过的例子：
+
+**现象**：`npm install` 最后出现
+
+```text
+npm warn cleanup Failed to remove some directories [
+npm warn cleanup   [Error: EPERM: operation not permitted, rmdir '...\node_modules\...'
+...
+npm error code 1
+```
+
+**原因**：有程序正占用着 `node_modules` 里的文件，npm 清理不掉旧目录。常见的占用者是 VSCode、正在运行的挂件，或杀毒软件的实时扫描。
+
+**解决**：先关闭 VSCode 和正在运行的挂件（托盘图标右键 → 关闭挂件），然后在项目根目录执行：
+
+```powershell
+# PowerShell
+Remove-Item -Recurse -Force node_modules
+npm cache clean --force
+npm install
+```
+
+```bat
+:: 命令提示符（cmd）
+rmdir /s /q node_modules
+npm cache clean --force
+npm install
+```
+
+> 开头的几行 `npm warn deprecated ...` 只是依赖包的弃用提醒，不影响使用，不用处理。
+
 ### 创建快捷方式（源码启动，免打包）
 
 `npm install` 完成后，双击运行一次 `scripts\create-source-shortcut.cmd`：
@@ -285,6 +320,12 @@ cd yoimiya-desktop-widget
 npm install
 npm start
 ```
+
+### npm install 报 EPERM / cleanup Failed to remove some directories？
+
+有程序占用了 `node_modules` 里的文件（常见是 VSCode 或正在运行的挂件）。关掉它们，
+删除 `node_modules` 后重装即可，具体命令见[「安装出错了怎么办」](#安装出错了怎么办)。
+其他报错可以把完整报错贴给 AI，一般都能直接解决。
 
 ### 音频没有声音？
 
