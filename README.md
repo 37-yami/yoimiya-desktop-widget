@@ -4,7 +4,7 @@
 > 透明悬浮 · 语音互动 · 全屏避让 · 拖拽移动 · 绿色免安装
 
 <p align="center">
-  <img src="characters/yoimiya/yoimiya.webp" alt="宵宫挂件截图" width="200">
+  <img src="yoimiya.gif" alt="宵宫挂件截图" width="200">
 </p>
 
 ---
@@ -41,19 +41,19 @@ yoimiya-desktop-widget/
 ├── character.js               ← 角色包加载（主进程读取，经 IPC 下发——preload 沙箱里不能 require 本地模块）
 ├── llm.js                     ← DeepSeek 兼容客户端（SSE 流式 + JSON 三元组解析 + 流式切句）
 ├── tts.js                     ← GPT-SoVITS api_v2 客户端（PoC，服务不在线自动降级）
+├── yoimiya.gif                ← 角色动图原图（21MB，未抠背景；当前默认形象，可自行替换）
 ├── characters/yoimiya/        ← ★ 角色包（换角色 = 换目录，渲染层零改动）
 │   ├── manifest.json          ← { name, sprite, lines[], voices[], bubbleStyle }
-│   ├── yoimiya.webp           ← 透明动画（1.4MB / 63帧 / 480px / 16.7fps）
 │   ├── sprite.svg             ← 可选备选：原创矢量角色（零抠图，内置动画，改 manifest 启用）
 │   └── voices/voice1-5.mp3    ← 官方语音（小写 .mp3，asar 兼容）
 ├── tray-icon.png / -32.png    ← 托盘图标（16×16 + 32×32 高 DPI）
 ├── scripts/                   ← 构建 / 启动器 / 资源管线 / PoC 验证脚本
-│   ├── optimize_sprite.py     ← GIF→去黑底→透明动画 WebP 管线（rembg u2net，chroma 兜底）
+│   ├── optimize_sprite.py     ← 抠图管线（GIF 动图 / --single 单图，rembg 多模型 + chroma 兜底）
 │   ├── verify_sprite.py       ← 资源验收（体积/帧率/尺寸/四角 alpha）
-│   └── test-deepseek.mjs      ← LLM 全链路实测脚本
+│   ├── test-deepseek.mjs      ← LLM 全链路实测脚本
 │   ├── check-preload.js       ← preload 回归检查（npm run test:preload，CI 必跑）
 │   └── gen-avatar-zhipu.mjs   ← 智谱 CogView 一键生成 AI 立绘（需 ZHIPU_API_KEY）
-├── tests/                     ← node --test 单元测试（配置/存储/env/llm/tts）
+├── tests/                     ← node --test 单元测试（配置/存储/env/角色包/llm/tts）
 ├── docs/poc/                  ← P1 AI 试点 PoC 报告 + NOTES.md
 ├── .env.local                 ← AI 接口配置（gitignored，不入库）
 ├── build/icon.ico             ← 应用图标
@@ -187,8 +187,9 @@ DEEPSEEK_BASE_URL=https://api.deepseek.com
 
 ### 替换角色形象
 
-- **方式一（AI 立绘，推荐）**：用即梦/通义万相等生成一张**纯色背景的全身立绘**
-  （Prompt 与完整步骤见 `docs/poc/B1-ai-art-guide.md`），然后一条命令抠图接入：
+- **方式一（AI 立绘，推荐）**：用官方图/同人图作参考，在即梦/通义万相等工具里生成
+  **纯色背景的全身 Q版立绘**（参考图 Prompt 与完整步骤见 `docs/poc/B1-ai-art-guide.md`），
+  然后一条命令抠图接入：
 
   ```bash
   python scripts/optimize_sprite.py --single .source-assets/你的图.png --out characters/yoimiya/sprite-ai.webp
@@ -196,12 +197,12 @@ DEEPSEEK_BASE_URL=https://api.deepseek.com
 
   再把 `manifest.json` 的 `sprite` 指向新文件即可（立绘会自动叠加悬浮/点击/情绪动画）；
 
-- **方式二（现成透明素材）**：直接替换 `characters/yoimiya/yoimiya.webp`
-  （带透明通道的 WebP/APNG/GIF/SVG 均可），同步更新 `manifest.json` 的 `sprite`；
-- **方式三（动图重新处理）**：放置源 GIF 后运行资源管线
-  `python scripts/optimize_sprite.py`（需 `pip install rembg onnxruntime`；
-  `--model` 可选 `isnet-general-use`/`birefnet-general`，`--method chroma` 为色度键控兜底），
-  产物验收：`python scripts/verify_sprite.py`；
+- **方式二（现成透明素材）**：把 `manifest.json` 的 `sprite` 指向新素材
+  （带透明通道的 WebP/APNG/GIF/SVG 均可，路径相对项目根目录）；
+- **方式三（自己处理原 GIF）**：根目录 `yoimiya.gif` 是未抠背景的原图，
+  可用 `python scripts/optimize_sprite.py`（需 `pip install rembg onnxruntime`；
+  `--model` 可选 `isnet-general-use`/`birefnet-general`，`--method chroma` 为色度键控兜底）
+  或你自己的工具处理，产物验收：`python scripts/verify_sprite.py`；
 - 仓库自带零抠图备选：`characters/yoimiya/sprite.svg`（原创矢量角色，内置动画）；
 - 改完务必跑 `npm run test:preload`，它会真实启动渲染层确认立绘加载成功；
 - 完整换角色：新建 `characters/<name>/` 目录（manifest + 素材 + voices），渲染层零改动。

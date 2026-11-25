@@ -31,7 +31,9 @@
   magpie 本地网关（`127.0.0.1:3425`）仅 13 个 GLM **文本**模型；
   配置里的 `zhipu` 直连 provider 的 key 为空（残留项）；tokenshare 中转站仅 5 个文本模型、
   `/v1/images/generations` 路由级 404。
-- 原因④：源 GIF 自动抠图两轮（u2net 丢呆毛发饰 / isnet 空白乱扣）均不达标，已放弃。
+- 原因④：源 GIF 自动抠图两轮（u2net 丢呆毛发饰 / isnet 空白乱扣）均不达标，已放弃；
+  **2026-11-25 按用户要求恢复根目录 `yoimiya.gif` 原图为默认形象**，失败产物 webp 已从仓库移除
+  （git 历史可取回），背景由用户自行处理。
 - **可行路径（见 `B1-ai-art-guide.md`）**：
   1. 用户用即梦/通义万相等出图 → `scripts/optimize_sprite.py --single` 抠图集成；
   2. 有智谱 key 时：`ZHIPU_API_KEY=xxx node scripts/gen-avatar-zhipu.mjs` 一键生成；
