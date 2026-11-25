@@ -27,6 +27,14 @@ try {
   console.warn('⚠️ 角色包获取失败，渲染层将使用内置兜底配置:', err.message);
 }
 
+// 初始形象模式同样在 preload 阶段同步取得：渲染层首帧就要显示对的立绘
+let initialSpriteMode = 'original';
+try {
+  initialSpriteMode = ipcRenderer.sendSync('get-sprite-mode');
+} catch (err) {
+  console.warn('⚠️ 形象模式获取失败，按原形态启动:', err.message);
+}
+
 contextBridge.exposeInMainWorld('electronAPI', {
   // ---- 环境标识 ----
   isElectron: true,
@@ -69,6 +77,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('open-volume-panel', () => callback());
   },
   setVolume: (value) => ipcRenderer.send('set-volume', value),
+
+  // ---- 形象切换（右键菜单 ↔ 渲染层共用主进程同一个入口） ----
+  getSpriteMode: () => initialSpriteMode,
+  setSpriteMode: (mode) => ipcRenderer.invoke('set-sprite-mode', mode),
+  onSpriteModeChanged: (callback) => {
+    ipcRenderer.on('sprite-mode-changed', (_event, mode) => callback(mode));
+  },
 
   // ---- TTS 音频下发（P1-A1：GPT-SoVITS 合成的 wav Buffer） ----
   onTtsAudio: (callback) => {

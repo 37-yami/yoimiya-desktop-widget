@@ -41,20 +41,42 @@ const {
   FULLSCREEN_POLL_INTERVAL,
 } = require('./config');
 const { initStore, getSetting, setSetting } = require('./store');
-const { buildCharacterPack, registerCharacterIpc } = require('./character');
-const {
-  loadLlmConfig,
-  chatComplete,
-  parseLlmJson,
-  TextFieldStreamer,
-} = require('./llm');
+const { buildCharacterPack, registerCharacterIpc, normalizeSpriteMode } = require('./character');
+const { loadLlmConfig, chatComplete, parseLlmJson, TextFieldStreamer } = require('./llm');
 const { checkTtsHealth, ttsLocal } = require('./tts');
 
 // 设置持久化（electron-store，写入 userData/widget-settings.json）
 initStore();
 
 // 角色包同步 IPC —— 必须在 createWindow 之前注册（preload 启动时会同步请求）
-registerCharacterIpc(ipcMain, buildCharacterPack());
+const characterPack = buildCharacterPack();
+registerCharacterIpc(ipcMain, characterPack);
+
+/**
+ * 形象模式：'original' 原形态（manifest.sprite，默认）| 'ai' 情绪立绘集。
+ * 设置里停在 AI 形态但立绘集缺失时，自动退回原形态。
+ */
+let spriteMode = normalizeSpriteMode(
+  getSetting('spriteMode'),
+  Boolean(characterPack.emotionSprites)
+);
+
+// preload 启动时同步取初始模式（渲染层首帧就要用对的立绘，避免先闪原形态再淡入）
+ipcMain.on('get-sprite-mode', (event) => {
+  event.returnValue = spriteMode;
+});
+
+/** 切换形象模式：持久化并通知渲染层（菜单与渲染层 IPC 共用这一个入口） */
+function setSpriteMode(mode) {
+  const next = normalizeSpriteMode(mode, Boolean(characterPack.emotionSprites));
+  if (next === spriteMode) return spriteMode;
+  spriteMode = next;
+  setSetting('spriteMode', spriteMode);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('sprite-mode-changed', spriteMode);
+  }
+  return spriteMode;
+}
 
 // ============================================================
 // 🔧 全局状态
@@ -235,6 +257,24 @@ function buildContextMenu() {
     },
     { type: 'separator' },
     {
+      label: '🎭 形象切换',
+      submenu: [
+        {
+          label: '原形态（原 GIF）',
+          type: 'radio',
+          checked: spriteMode === 'original',
+          click: () => setSpriteMode('original'),
+        },
+        {
+          label: 'AI 形态（情绪立绘）',
+          type: 'radio',
+          checked: spriteMode === 'ai',
+          enabled: Boolean(characterPack.emotionSprites), // 没有立绘集时置灰
+          click: () => setSpriteMode('ai'),
+        },
+      ],
+    },
+    {
       label: '🎵 音量调节',
       click: () => {
         if (mainWindow && !mainWindow.isDestroyed()) {
@@ -243,9 +283,7 @@ function buildContextMenu() {
       },
     },
     {
-      label: llmAvailable()
-        ? '💬 AI 对话（DeepSeek）'
-        : '💬 AI 对话（未配置/已停用）',
+      label: llmAvailable() ? '💬 AI 对话（DeepSeek）' : '💬 AI 对话（未配置/已停用）',
       type: 'checkbox',
       checked: aiChatEnabled && llmAvailable(),
       enabled: llmAvailable(),
@@ -533,28 +571,31 @@ const PROACTIVE_IDLE_THRESHOLD_MIN = 15;
 
 function startProactiveScheduler() {
   if (proactiveTimer) return;
-  proactiveTimer = setInterval(() => {
-    if (!mainWindow || mainWindow.isDestroyed() || hiddenManually) return;
-    if (fullscreenHidden || mousePassthroughLocked) return; // 全屏隐形期间保持完全退场（不出声不冒泡）
-    const now = Date.now();
-    if (now - lastProactiveAt < PROACTIVE_COOLDOWN_MS) return;
+  proactiveTimer = setInterval(
+    () => {
+      if (!mainWindow || mainWindow.isDestroyed() || hiddenManually) return;
+      if (fullscreenHidden || mousePassthroughLocked) return; // 全屏隐形期间保持完全退场（不出声不冒泡）
+      const now = Date.now();
+      if (now - lastProactiveAt < PROACTIVE_COOLDOWN_MS) return;
 
-    let idleSeconds;
-    try {
-      idleSeconds = powerMonitor.getSystemIdleTime();
-    } catch (_) {
-      return;
-    }
-    const idleMinutes = Math.floor(idleSeconds / 60);
-    if (idleMinutes < PROACTIVE_IDLE_THRESHOLD_MIN) return;
+      let idleSeconds;
+      try {
+        idleSeconds = powerMonitor.getSystemIdleTime();
+      } catch (_) {
+        return;
+      }
+      const idleMinutes = Math.floor(idleSeconds / 60);
+      if (idleMinutes < PROACTIVE_IDLE_THRESHOLD_MIN) return;
 
-    lastProactiveAt = now;
-    mainWindow.webContents.send('proactive-trigger', {
-      kind: 'idle',
-      idleMinutes,
-      hour: new Date().getHours(),
-    });
-  }, 5 * 60 * 1000); // 每 5 分钟评估一次
+      lastProactiveAt = now;
+      mainWindow.webContents.send('proactive-trigger', {
+        kind: 'idle',
+        idleMinutes,
+        hour: new Date().getHours(),
+      });
+    },
+    5 * 60 * 1000
+  ); // 每 5 分钟评估一次
 }
 
 function stopProactiveScheduler() {
@@ -713,6 +754,7 @@ ipcMain.handle('get-settings', () => {
     alwaysOnTop,
     volume: getSetting('volume'),
     aiChatEnabled: aiChatEnabled && llmAvailable(),
+    spriteMode,
   };
 });
 
@@ -720,6 +762,9 @@ ipcMain.handle('get-settings', () => {
 ipcMain.on('set-volume', (_event, value) => {
   setSetting('volume', value);
 });
+
+// 渲染进程请求切换形象（与右键菜单走同一个 setSpriteMode 入口）
+ipcMain.handle('set-sprite-mode', (_event, mode) => setSpriteMode(mode));
 
 // ============================================================
 // 🤖 LLM 对话（P1-A3：DeepSeek JSON 三元组；A4：流式切句下发）

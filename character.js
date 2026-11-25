@@ -75,6 +75,18 @@ function buildCharacterPack(manifestPath = MANIFEST_PATH) {
   return pack;
 }
 
+/**
+ * 归一化形象模式：'ai' 仅在情绪立绘集可用时生效，否则一律 'original'。
+ *（避免设置里停在 AI 形态、但立绘文件已缺失时出现空画面）
+ * @param {unknown} mode
+ * @param {boolean} hasEmotionSprites
+ * @returns {'original'|'ai'}
+ */
+function normalizeSpriteMode(mode, hasEmotionSprites) {
+  if (mode === 'original') return 'original';
+  return mode === 'ai' && hasEmotionSprites ? 'ai' : 'original';
+}
+
 module.exports = {
   CHARACTER_DIR_NAME,
   POSES,
@@ -82,4 +94,5 @@ module.exports = {
   registerCharacterIpc,
   resolveEmotionSprites,
   buildCharacterPack,
+  normalizeSpriteMode,
 };

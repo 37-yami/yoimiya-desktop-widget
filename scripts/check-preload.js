@@ -29,6 +29,9 @@ app.disableHardwareAcceleration();
 app.whenReady().then(async () => {
   // 与 main.js 一致：创建窗口前注册 preload 要用的同步 IPC
   registerCharacterIpc(ipcMain, buildCharacterPack());
+  ipcMain.on('get-sprite-mode', (event) => {
+    event.returnValue = 'original'; // 本检查不接主进程的设置存储，固定按默认形态启动
+  });
 
   const win = new BrowserWindow({
     width: WIDGET_WIDTH,
@@ -78,7 +81,7 @@ app.whenReady().then(async () => {
       bubbleShown: document.getElementById('speechBubble').classList.contains('show'),
     };
 
-    // ---- 情绪立绘集：逐张加载 + 实际切换一次 ----
+    // ---- 形态：原形态（默认）/ AI 形态（情绪立绘集）----
     const sprites = api && api.getEmotionSprites ? api.getEmotionSprites() : null;
     state.hasEmotionSprites = Boolean(sprites);
     state.spriteCount = sprites ? Object.keys(sprites).length : 0;
@@ -96,12 +99,24 @@ app.whenReady().then(async () => {
       return el ? el.getAttribute('src') : null;
     };
     state.afterWelcome = activeSrc();
+    state.modeAtStart = window.__widget ? window.__widget.getMode() : null;
     if (window.__widget && sprites) {
-      window.__widget.setPose('excited');
-      await new Promise((r) => setTimeout(r, 500));
-      state.switched = { pose: window.__widget.getPose(), active: activeSrc() };
-      window.__widget.setPose('idle');
-      await new Promise((r) => setTimeout(r, 400));
+      // 原形态 → AI 形态：从待机姿势开始
+      window.__widget.applySpriteMode('ai');
+      await new Promise((r) => setTimeout(r, 450));
+      state.aiIdle = { mode: window.__widget.getMode(), active: activeSrc() };
+      // AI 形态下随情绪换图
+      window.__widget.applyEmotion('excited', null);
+      await new Promise((r) => setTimeout(r, 450));
+      state.aiExcited = { pose: window.__widget.getPose(), active: activeSrc() };
+      // 切回原形态
+      window.__widget.applySpriteMode('original');
+      await new Promise((r) => setTimeout(r, 450));
+      state.backOriginal = { mode: window.__widget.getMode(), active: activeSrc() };
+      // 原形态下换情绪不应换图
+      window.__widget.applyEmotion('sad', null);
+      await new Promise((r) => setTimeout(r, 350));
+      state.originalStays = activeSrc();
     }
     return state;
   })()`);
@@ -120,6 +135,9 @@ app.whenReady().then(async () => {
     'llmChat',
     'setVolume',
     'getEmotionSprites',
+    'getSpriteMode',
+    'setSpriteMode',
+    'onSpriteModeChanged',
   ];
   const missing = required.filter((k) => !info.apiKeys.includes(k));
   check(
@@ -132,26 +150,35 @@ app.whenReady().then(async () => {
   check(info.characterName === 'yoimiya', '角色包经 IPC 下发成功', String(info.characterName));
   check(info.bubbleShown, '欢迎气泡已显示');
 
-  // ---- 情绪立绘集（manifest.emotionSprites，可选增强）----
-  // 已安装 → 必须六张齐全、可加载、可切换；未安装 → 回落单张 sprite，同样必须能显示
+  // ---- 形态：原形态（默认）/ AI 形态（manifest.emotionSprites）----
+  const ORIG = 'yoimiya.gif';
+  check((initial || '').endsWith(ORIG), '默认原形态：启动时显示原图', initial);
+  check(info.modeAtStart === 'original', '初始模式为 original', String(info.modeAtStart));
+  check((info.afterWelcome || '').endsWith(ORIG), '原形态下欢迎气泡不换图', info.afterWelcome);
   if (info.hasEmotionSprites) {
     check(info.spriteCount === 6, `情绪立绘集经 IPC 下发（${info.spriteCount}/6 个姿势）`);
     check(info.spriteFailed.length === 0, '六张情绪立绘全部加载成功', info.spriteFailed.join(','));
-    check((initial || '').endsWith('/emotions/idle.webp'), '启动时显示待机立绘', initial);
+    const a = info.aiIdle || {};
     check(
-      (info.afterWelcome || '').endsWith('/emotions/happy.webp'),
-      '欢迎气泡触发情绪联动（待机 → happy）',
-      info.afterWelcome
+      a.mode === 'ai' && (a.active || '').endsWith('/emotions/idle.webp'),
+      '切到 AI 形态：显示待机立绘',
+      `${a.mode} → ${a.active}`
     );
-    const sw = info.switched || {};
+    const e = info.aiExcited || {};
     check(
-      sw.pose === 'excited' && (sw.active || '').endsWith('/emotions/excited.webp'),
-      '情绪切换：切到 excited 后显示层完成交接',
-      `${sw.pose} → ${sw.active}`
+      e.pose === 'excited' && (e.active || '').endsWith('/emotions/excited.webp'),
+      'AI 形态下随情绪换图（excited）',
+      `${e.pose} → ${e.active}`
     );
+    const b = info.backOriginal || {};
+    check(
+      b.mode === 'original' && (b.active || '').endsWith(ORIG),
+      '切回原形态：显示原图',
+      `${b.mode} → ${b.active}`
+    );
+    check((info.originalStays || '').endsWith(ORIG), '切回后换情绪不再换图', info.originalStays);
   } else {
-    console.log('INFO  情绪立绘集未安装，回落单张 sprite（manifest.sprite）');
-    check((initial || '').endsWith(String(info.spriteSrc)), '回落：启动时显示单张 sprite', initial);
+    console.log('INFO  情绪立绘集未安装：AI 形态不可用，仅原形态');
   }
 
   console.log(failures.length ? `\n✖ ${failures.length} 项失败` : '\n✔ preload 回归检查全部通过');

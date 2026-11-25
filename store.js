@@ -2,7 +2,8 @@
  * 设置持久化 —— electron-store 包装
  * ============================================================
  * 保存：soundEnabled / alwaysOnTop / autoHideOnFullscreen /
- *       volume / windowPosition
+ *       volume / windowPosition / aiChatEnabled / spriteMode
+ *      （spriteMode：'original' 原形态 | 'ai' AI 情绪立绘，默认 original）
  *
  * 设计要点：
  *   - 主进程 app ready 后调用 initStore() 创建真实存储
@@ -17,6 +18,7 @@ const DEFAULTS = Object.freeze({
   volume: 100, // 音量 0-100
   windowPosition: null, // [x, y]（null = 使用默认右下角）
   aiChatEnabled: false, // AI 对话（P1：默认关闭，未配 key 时零依赖）
+  spriteMode: 'original', // 形象：original = 原形态（manifest.sprite）/ ai = 情绪立绘集
 });
 
 let storeInstance = null;
@@ -31,6 +33,11 @@ function sanitizeVolume(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return DEFAULTS.volume;
   return Math.min(100, Math.max(0, Math.round(n)));
+}
+
+/** 形象模式清洗：只接受 'ai' / 'original'，其余一律回落 'original' */
+function sanitizeSpriteMode(value) {
+  return value === 'ai' ? 'ai' : DEFAULTS.spriteMode;
 }
 
 /** 内存兜底存储（单元测试 / electron-store 不可用时） */
@@ -73,16 +80,19 @@ function getSetting(key) {
   return value === undefined ? DEFAULTS[key] : value;
 }
 
-/** 写入一项设置（音量自动钳制） */
+/** 写入一项设置（音量 / 形象模式自动清洗） */
 function setSetting(key, value) {
   const s = storeInstance || createMemoryStore();
-  const safe = key === 'volume' ? sanitizeVolume(value) : value;
+  let safe = value;
+  if (key === 'volume') safe = sanitizeVolume(value);
+  if (key === 'spriteMode') safe = sanitizeSpriteMode(value);
   s.set(key, safe);
 }
 
 module.exports = {
   defaults,
   sanitizeVolume,
+  sanitizeSpriteMode,
   createMemoryStore,
   initStore,
   getSetting,

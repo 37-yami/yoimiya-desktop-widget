@@ -71,6 +71,16 @@ test('真实角色包：六个姿势的情绪立绘集全部解析成功且文�
   }
 });
 
+test('normalizeSpriteMode：AI 形态仅在情绪立绘集可用时生效，否则退回原形态', () => {
+  const { normalizeSpriteMode } = require('../character.js');
+  assert.equal(normalizeSpriteMode('original', true), 'original');
+  assert.equal(normalizeSpriteMode('original', false), 'original');
+  assert.equal(normalizeSpriteMode('ai', true), 'ai');
+  assert.equal(normalizeSpriteMode('ai', false), 'original', '立绘集缺失时不能停在 AI 形态');
+  assert.equal(normalizeSpriteMode(undefined, true), 'original');
+  assert.equal(normalizeSpriteMode('garbage', true), 'original');
+});
+
 test('resolveEmotionSprites：缺少必需情绪或文件不存在时返回 null（整组降级，避免半套立绘跳图）', () => {
   const { resolveEmotionSprites } = require('../character.js');
   const fs = require('node:fs');

@@ -13,6 +13,16 @@ test('默认设置完整且类型正确', () => {
   assert.equal(d.volume, 100);
   assert.equal(d.windowPosition, null);
   assert.equal(d.aiChatEnabled, false, 'AI 对话默认关闭（未配 key 时零依赖）');
+  assert.equal(d.spriteMode, 'original', '形象模式默认原形态');
+});
+
+test('sanitizeSpriteMode：只接受 ai / original，其余一律回落 original', () => {
+  const { sanitizeSpriteMode } = require('../store.js');
+  assert.equal(sanitizeSpriteMode('ai'), 'ai');
+  assert.equal(sanitizeSpriteMode('original'), 'original');
+  assert.equal(sanitizeSpriteMode('AI'), 'original');
+  assert.equal(sanitizeSpriteMode(undefined), 'original');
+  assert.equal(sanitizeSpriteMode(''), 'original');
 });
 
 test('音量写入时钳制到 0-100', () => {

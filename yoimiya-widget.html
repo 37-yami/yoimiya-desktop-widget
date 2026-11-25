@@ -943,6 +943,14 @@
           });
         }
 
+        // ⑦ 形象模式切换（右键菜单「形象切换」→ 主进程持久化后推送）
+        if (window.electronAPI.onSpriteModeChanged) {
+          window.electronAPI.onSpriteModeChanged((mode) => {
+            applySpriteMode(mode);
+            console.log('🎭 形象已切换为', mode === 'ai' ? 'AI 形态' : '原形态');
+          });
+        }
+
         // ② 监听主进程的音效切换命令
         window.electronAPI.onToggleSound((enabled) => {
           isSoundEnabled = enabled;
@@ -990,11 +998,29 @@
         : [];
 
       // ========================================================
-      // 🖼️ 情绪立绘集：双层交叉淡入淡出
+      // 🖼️ 立绘：原形态 / AI 形态（情绪立绘集），双层交叉淡入淡出
       // ========================================================
 
       /** 情绪 → 立绘路径（主进程已校验齐全；角色包没有情绪集时为 null） */
       const EMOTION_SPRITES = window.electronAPI?.getEmotionSprites?.() || null;
+
+      /**
+       * 姿势 → 立绘路径。
+       *   original        = 原形态（manifest.sprite，默认形态）
+       *   idle/happy/...  = AI 形态的情绪立绘
+       */
+      const POSE_SOURCES = {
+        original: character?.sprite || 'yoimiya.gif',
+        ...(EMOTION_SPRITES || {}),
+      };
+
+      /**
+       * 形象模式：'original'（默认）| 'ai'。
+       * 初始值由 preload 同步取得（首帧就用对的立绘）；
+       * 右键菜单切换时由主进程推送更新（applySpriteMode）。
+       */
+      let spriteMode =
+        EMOTION_SPRITES && window.electronAPI?.getSpriteMode?.() === 'ai' ? 'ai' : 'original';
 
       const characterInner = document.getElementById('characterInner');
       const spriteLayers = [document.getElementById('spriteA'), document.getElementById('spriteB')];
@@ -1004,12 +1030,11 @@
 
       /**
        * 切换姿势立绘。新图加载完成后才交接，期间旧图保持可见（不闪白）。
-       * @param {string} pose idle / happy / excited / shy / sad / sleepy
-       * @returns {boolean} 是否由情绪集接管了显示
+       * @param {string} pose original / idle / happy / excited / shy / sad / sleepy
+       * @returns {boolean} 是否有可用的立绘
        */
       function setPose(pose) {
-        if (!EMOTION_SPRITES) return false;
-        const src = EMOTION_SPRITES[pose] || EMOTION_SPRITES.idle;
+        const src = POSE_SOURCES[pose] || POSE_SOURCES.original;
         if (!src) return false;
         if (currentPose === pose) return true;
         currentPose = pose;
@@ -1030,12 +1055,10 @@
         return true;
       }
 
-      // 初始立绘：有情绪集 → 待机姿势；否则用单张 sprite
-      //（浏览器直接打开、无 electronAPI 时回落根目录 GIF）
-      spriteLayers[0].src = EMOTION_SPRITES
-        ? EMOTION_SPRITES.idle
-        : character?.sprite || 'yoimiya.gif';
-      if (EMOTION_SPRITES) currentPose = 'idle';
+      // 初始立绘：原形态 → 原图；AI 形态 → 待机姿势
+      const initialPose = spriteMode === 'ai' ? 'idle' : 'original';
+      spriteLayers[0].src = POSE_SOURCES[initialPose];
+      currentPose = initialPose;
 
       /**
        * 音效状态 —— 由主进程右键菜单通过 IPC 控制
@@ -1612,12 +1635,12 @@
         if (e.animationName === 'talkBob') characterInner.classList.remove('talking');
       });
 
-      /** 气泡消失一段时间后回到待机姿势 —— 情绪是反应，不是常驻状态 */
+      /** 气泡消失一段时间后回到待机姿势 —— 情绪是反应，不是常驻状态（仅 AI 形态） */
       let idleReturnTimer = null;
       const IDLE_RETURN_MS = 2500;
 
       function scheduleReturnToIdle() {
-        if (!EMOTION_SPRITES) return;
+        if (spriteMode !== 'ai') return;
         clearTimeout(idleReturnTimer);
         idleReturnTimer = setTimeout(() => {
           for (const c of IDLE_CLASSES) characterFrame.classList.remove(c);
@@ -1644,11 +1667,11 @@
         for (const c of IDLE_CLASSES) characterFrame.classList.remove(c);
         characterFrame.classList.add(`idle-${emo}`);
 
-        // ③ 情绪立绘（角色包没有情绪集时 setPose 返回 false，其余联动照常）
-        if (setPose(emo)) {
+        // ③ 情绪立绘（仅 AI 形态随情绪换图；原形态始终是原图）
+        if (spriteMode === 'ai' && setPose(emo)) {
           popPose();
-          burstEmotionParticles(emo);
         }
+        burstEmotionParticles(emo); // 两种形态都飘小粒子
 
         // ④ 事件动作
         for (const c of MOTION_CLASSES) characterFrame.classList.remove(c);
@@ -1661,8 +1684,38 @@
         }
       }
 
+      /**
+       * 应用形象模式（右键菜单切换后由主进程推送）：
+       *   ai       → 从待机姿势开始，并沿用当前气泡情绪的待机节奏
+       *   original → 锁定为原图，不再随情绪换图
+       * 立绘集不可用时一律回落 original。
+       */
+      function applySpriteMode(mode) {
+        const next = mode === 'ai' && EMOTION_SPRITES ? 'ai' : 'original';
+        if (next === spriteMode) return;
+        spriteMode = next;
+        clearTimeout(idleReturnTimer);
+        for (const c of IDLE_CLASSES) characterFrame.classList.remove(c);
+
+        if (spriteMode === 'ai') {
+          setPose('idle');
+          // 气泡当前是什么情绪，就让角色框挂上对应的待机节奏
+          const emoClass = EMOTION_CLASSES.find((c) => bubble.classList.contains(c));
+          if (emoClass) characterFrame.classList.add(emoClass.replace('emotion-', 'idle-'));
+        } else {
+          setPose('original');
+        }
+        popPose();
+      }
+
       // 调试 / 自动化测试入口（仅暴露内部的几个纯展示函数，无外部输入面）
-      window.__widget = { applyEmotion, setPose, getPose: () => currentPose };
+      window.__widget = {
+        applyEmotion,
+        setPose,
+        applySpriteMode,
+        getPose: () => currentPose,
+        getMode: () => spriteMode,
+      };
 
       // ========================================================
       // 🎚️ 音量滑条（P0-7：0-100，右键菜单唤起，持久化）
