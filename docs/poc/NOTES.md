@@ -38,7 +38,13 @@
   1. 用户用即梦/通义万相等出图 → `scripts/optimize_sprite.py --single` 抠图集成；
   2. 有智谱 key 时：`ZHIPU_API_KEY=xxx node scripts/gen-avatar-zhipu.mjs` 一键生成；
   3. 零凭据备选：`characters/yoimiya/sprite.svg`（代码手绘矢量角色，天然透明、
-     内置眨眼/挥手/花火动画，未设为默认，改 manifest.sprite 即可启用）。
+     内置眨眼/挥手/花火动画；现为**基线形象**，情绪立绘集缺失时自动使用）。
+- **2026-11-25 已落地**：用户用即梦按 Prompt A/C 出了 6 张图（基础图 + 5 情绪变体），
+  经 `scripts/build_emotion_sprites.py` 抠图（isnet-general-use，深色底无白边）并统一取景
+  （脚底基准线偏差 ≤4px@640px），产出 `characters/yoimiya/emotions/*.webp`（合计约 340KB），
+  挂件按情绪自动切换，真实应用逐情绪截图验证通过。
+- **发布提醒**：这批立绘是 AI 生成的角色素材，按任务书版权边界**不应随公开仓库分发**——
+  是否推送由仓库所有者决定；未推送时远程自动回落到 `sprite.svg`（已验证该回落路径）。
 - 后续：按任务书 Prompt（`(masterpiece, best quality), yoimiya \(genshin impact\), full body…`
   - ControlNet OpenPose）在本地 SD 环境出 3–5 姿势，再跑 `scripts/optimize_sprite.py` 的抠图段。
 

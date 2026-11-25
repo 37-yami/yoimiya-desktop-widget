@@ -111,25 +111,38 @@ Q版动漫原创角色少女，烟花祭典主题，暖橙色双马尾，大红�
 
 ## 第 2 步：抠图 + 接入
 
-把生成的图放进 `.source-assets/`（不入库），然后：
+### 2A. 六张图 → 情绪立绘集（推荐，挂件会按情绪自动换姿势）
+
+把 6 张图按下面的名字放进 `.source-assets/ai/`（不入库），每张一个姿势：
+
+| 文件名        | 姿势                          |
+| ------------- | ----------------------------- |
+| `idle.png`    | 待机（Prompt A 的基础图即可） |
+| `happy.png`   | 开心微笑、挥手                |
+| `excited.png` | 跳起、双手高举                |
+| `shy.png`     | 害羞捂脸                      |
+| `sad.png`     | 低头含泪                      |
+| `sleepy.png`  | 打哈欠                        |
 
 ```bash
-# ① 抠图 + 等比缩放到 480px，输出带透明通道的立绘
+python scripts/build_emotion_sprites.py
+# → characters/yoimiya/emotions/{idle,happy,excited,shy,sad,sleepy}.webp
+# → .source-assets/ai/_qa-sheet.png（质检图：灰底并排 + 包围盒 + 脚底基准线）
+```
+
+脚本要点：全部图**共用同一个裁切框**（否则切换情绪时角色会跳位）、自动清除水印残点与
+游离小色块、输出统一 640px 高。六张齐全挂件才启用情绪集，缺一张就整体回落到单张 `sprite`。
+
+### 2B. 单张图 → 单张立绘
+
+```bash
 python scripts/optimize_sprite.py --single .source-assets/你的图.png --out characters/yoimiya/sprite-ai.webp
-#    需要: pip install rembg onnxruntime（首次自动下载约 170MB 模型）
-#    想要无损就输出 .png；细节保留不好时加 --model birefnet-general
-
-# ② 真实启动渲染层，确认立绘能加载
-npm run test:preload
+npm run test:preload   # 真实启动渲染层，确认立绘能加载
 ```
 
-把 `characters/yoimiya/manifest.json` 的 `sprite` 改成新文件路径即可：
-
-```json
-"sprite": "characters/yoimiya/sprite-ai.webp"
-```
-
-立绘会自动叠加挂件原有的悬浮呼吸、点击星火、情绪气泡与动作动画。
+把 `characters/yoimiya/manifest.json` 的 `sprite` 改成新文件路径即可，例如
+`"sprite": "characters/yoimiya/sprite-ai.webp"`。立绘会自动叠加挂件原有的悬浮呼吸、
+点击星火、情绪气泡与动作动画。
 
 ## 附 A：自己处理原 GIF
 
@@ -152,13 +165,14 @@ node scripts/gen-avatar-zhipu.mjs --out .source-assets/ai-character.png
 
 key 只从环境变量读取，不打印、不入库。
 
-## 附 C：零凭据备选（仓库自带）
+## 附 C：零凭据备选（仓库自带，现为基线形象）
 
 `characters/yoimiya/sprite.svg`：代码手绘的原创矢量角色，天然透明、内置
-眨眼/挥手/花火动画，未设为默认。想用就把 manifest 的 `sprite` 改成
-`characters/yoimiya/sprite.svg`。
+眨眼/挥手/花火动画。它是 `manifest.sprite` 的当前值——情绪立绘集
+（`emotions/*.webp`）不存在时挂件自动使用它，存在时被情绪集取代。
 
 ## 版权提醒
 
 用官方图 / 同人图生成的结果**仅限个人自用**：不要连同仓库公开分发，
-公开版本的默认形象请使用原创角色。
+公开版本的默认形象请使用原创角色（仓库基线形象 `sprite.svg` 即为此准备；
+`emotions/` 下的 AI 立绘若不想公开，把该目录加入 `.gitignore` 即可，挂件会自动回落）。

@@ -11,20 +11,21 @@
 
 ## ✨ 功能特性
 
-| 功能                   | 说明                                                              |
-| ---------------------- | ----------------------------------------------------------------- |
-| 🪟 **透明悬浮**        | 无边框、背景完全透明，只显示角色本体                              |
-| 🎤 **语音互动**        | 点击角色播放随机台词，5 句宵宫原声                                |
-| 💬 **漫画气泡**        | 自适应文字长度，弹跳动画显隐，情绪变色                            |
-| 🖱️ **自由拖拽**        | 按住角色任意位置拖动，松手带惯性滑行与边界回弹，高 DPI 不失灵     |
-| 🎮 **全屏避让**        | 检测到全屏应用自动降级透明且完全不可交互，退出游戏自动恢复        |
-| 🔔 **系统托盘**        | 隐藏后托盘图标一键恢复，可一键回到默认位置（16/32 双尺寸图标）    |
-| ⚙️ **右键菜单**        | 音效 / 全屏避让 / 置顶 / 音量滑条 / AI 对话 / 回到默认位置        |
-| ⚡ **点击穿透**        | 透明区域不阻挡桌面图标和其他窗口                                  |
-| 💾 **设置持久化**      | 位置 / 音量 / 开关状态重启后全部恢复                              |
-| 😴 **待机台词**        | 长时间未交互 / 整点 / 深夜触发角色自言自语                        |
-| 🤖 **AI 对话（试点）** | 可选接入 DeepSeek，流式回复 + 情绪/动作联动，失败自动回落本地台词 |
-| 📦 **绿色免安装**      | 解压即用，自带启动器与文件夹内快捷方式生成脚本                    |
+| 功能                   | 说明                                                                          |
+| ---------------------- | ----------------------------------------------------------------------------- |
+| 🪟 **透明悬浮**        | 无边框、背景完全透明，只显示角色本体                                          |
+| 🎤 **语音互动**        | 点击角色播放随机台词，5 句宵宫原声                                            |
+| 💬 **漫画气泡**        | 自适应文字长度，弹跳动画显隐，情绪变色                                        |
+| 🎭 **情绪立绘集**      | 待机 + 5 种情绪姿势随对话切换：交叉淡入、呼吸起伏、各情绪待机节奏、头顶小粒子 |
+| 🖱️ **自由拖拽**        | 按住角色任意位置拖动，松手带惯性滑行与边界回弹，高 DPI 不失灵                 |
+| 🎮 **全屏避让**        | 检测到全屏应用自动降级透明且完全不可交互，退出游戏自动恢复                    |
+| 🔔 **系统托盘**        | 隐藏后托盘图标一键恢复，可一键回到默认位置（16/32 双尺寸图标）                |
+| ⚙️ **右键菜单**        | 音效 / 全屏避让 / 置顶 / 音量滑条 / AI 对话 / 回到默认位置                    |
+| ⚡ **点击穿透**        | 透明区域不阻挡桌面图标和其他窗口                                              |
+| 💾 **设置持久化**      | 位置 / 音量 / 开关状态重启后全部恢复                                          |
+| 😴 **待机台词**        | 长时间未交互 / 整点 / 深夜触发角色自言自语                                    |
+| 🤖 **AI 对话（试点）** | 可选接入 DeepSeek，流式回复 + 情绪/动作联动，失败自动回落本地台词             |
+| 📦 **绿色免安装**      | 解压即用，自带启动器与文件夹内快捷方式生成脚本                                |
 
 ---
 
@@ -44,7 +45,8 @@ yoimiya-desktop-widget/
 ├── yoimiya.gif                ← 角色动图原图（21MB，未抠背景；当前默认形象，可自行替换）
 ├── characters/yoimiya/        ← ★ 角色包（换角色 = 换目录，渲染层零改动）
 │   ├── manifest.json          ← { name, sprite, lines[], voices[], bubbleStyle }
-│   ├── sprite.svg             ← 可选备选：原创矢量角色（零抠图，内置动画，改 manifest 启用）
+│   ├── sprite.svg             ← 基线形象：原创矢量角色（零抠图；情绪立绘集缺失时自动回落到它）
+│   ├── emotions/*.webp        ← 情绪立绘集（idle/happy/excited/shy/sad/sleepy，可选增强）
 │   └── voices/voice1-5.mp3    ← 官方语音（小写 .mp3，asar 兼容）
 ├── tray-icon.png / -32.png    ← 托盘图标（16×16 + 32×32 高 DPI）
 ├── scripts/                   ← 构建 / 启动器 / 资源管线 / PoC 验证脚本
@@ -52,7 +54,8 @@ yoimiya-desktop-widget/
 │   ├── verify_sprite.py       ← 资源验收（体积/帧率/尺寸/四角 alpha）
 │   ├── test-deepseek.mjs      ← LLM 全链路实测脚本
 │   ├── check-preload.js       ← preload 回归检查（npm run test:preload，CI 必跑）
-│   └── gen-avatar-zhipu.mjs   ← 智谱 CogView 一键生成 AI 立绘（需 ZHIPU_API_KEY）
+│   ├── gen-avatar-zhipu.mjs   ← 智谱 CogView 一键生成 AI 立绘（需 ZHIPU_API_KEY）
+│   └── build_emotion_sprites.py ← 多张同角色图 → 抠图/清杂点/统一取景 → 情绪立绘集
 ├── tests/                     ← node --test 单元测试（配置/存储/env/角色包/llm/tts）
 ├── docs/poc/                  ← P1 AI 试点 PoC 报告 + NOTES.md
 ├── .env.local                 ← AI 接口配置（gitignored，不入库）
@@ -187,24 +190,43 @@ DEEPSEEK_BASE_URL=https://api.deepseek.com
 
 ### 替换角色形象
 
-- **方式一（AI 立绘，推荐）**：用官方图/同人图作参考，在即梦/通义万相等工具里生成
-  **纯色背景的全身 Q版立绘**（参考图 Prompt 与完整步骤见 `docs/poc/B1-ai-art-guide.md`），
-  然后一条命令抠图接入：
+- **方式一（情绪立绘集，效果最好）**：准备同一角色的 6 张图（纯色背景、全身、
+  每张一个姿势），按下表命名后放进 `.source-assets/ai/`，一条命令完成抠图与接入：
+
+  | 文件名                                                             | 姿势             |
+  | ------------------------------------------------------------------ | ---------------- |
+  | `idle.png`                                                         | 待机（默认姿势） |
+  | `happy.png` / `excited.png` / `shy.png` / `sad.png` / `sleepy.png` | 5 种情绪         |
+
+  ```bash
+  python scripts/build_emotion_sprites.py     # → characters/yoimiya/emotions/*.webp
+  ```
+
+  脚本会用**同一个裁切框**处理全部图片（否则切换情绪时角色会跳位），并输出一张
+  带脚底基准线的质检图 `.source-assets/ai/_qa-sheet.png`。Prompt 与出图方法见
+  `docs/poc/B1-ai-art-guide.md`。六个姿势齐全时挂件才会启用情绪集，
+  缺任何一张都整体回落到单张 `sprite`；
+
+- **方式二（单张 AI 立绘）**：生成一张纯色背景的全身立绘后抠图接入：
 
   ```bash
   python scripts/optimize_sprite.py --single .source-assets/你的图.png --out characters/yoimiya/sprite-ai.webp
   ```
 
-  再把 `manifest.json` 的 `sprite` 指向新文件即可（立绘会自动叠加悬浮/点击/情绪动画）；
+  再把 `manifest.json` 的 `sprite` 指向新文件即可（立绘会自动叠加悬浮/呼吸/情绪动画）；
 
-- **方式二（现成透明素材）**：把 `manifest.json` 的 `sprite` 指向新素材
+- **方式三（现成透明素材）**：把 `manifest.json` 的 `sprite` 指向新素材
   （带透明通道的 WebP/APNG/GIF/SVG 均可，路径相对项目根目录）；
-- **方式三（自己处理原 GIF）**：根目录 `yoimiya.gif` 是未抠背景的原图，
+- **方式四（自己处理原 GIF）**：根目录 `yoimiya.gif` 是未抠背景的原图，
   可用 `python scripts/optimize_sprite.py`（需 `pip install rembg onnxruntime`；
   `--model` 可选 `isnet-general-use`/`birefnet-general`，`--method chroma` 为色度键控兜底）
   或你自己的工具处理，产物验收：`python scripts/verify_sprite.py`；
-- 仓库自带零抠图备选：`characters/yoimiya/sprite.svg`（原创矢量角色，内置动画）；
-- 改完务必跑 `npm run test:preload`，它会真实启动渲染层确认立绘加载成功；
+- `characters/yoimiya/sprite.svg` 是仓库自带的基线形象（原创矢量角色）：
+  没有情绪立绘集时自动使用它；
+- 想调整角色显示大小：`yoimiya-widget.html` 里 `body.electron-mode .character-frame`
+  的宽高，窗口高度在 `config.js` 的 `WIDGET_HEIGHT`（当前 160px 立绘 / 350px 窗口）；
+- 改完务必跑 `npm run test:preload`，它会真实启动渲染层，确认立绘加载成功、
+  情绪立绘集六张齐全且能切换；
 - 完整换角色：新建 `characters/<name>/` 目录（manifest + 素材 + voices），渲染层零改动。
 
 > 如需同步更换应用图标：用 GIF 任一帧（建议选完整姿势帧）制作多尺寸 ico（16/32/48/64/128/256）覆盖 `build/icon.ico`，重新打包后 exe / 快捷方式即为新图标。

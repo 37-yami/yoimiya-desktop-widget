@@ -5,7 +5,8 @@
 **🏗️ 工程与资源（P0）**
 
 - **角色包架构**：台词/语音迁移到 `characters/yoimiya/`（manifest.json 驱动），换角色零改码；音频统一小写 `.mp3`（asar 大小写兼容）；立绘路径同样由 manifest 的 `sprite` 指定
-- **抠图管线（工具，未启用）**：`scripts/optimize_sprite.py` 支持 GIF 动图与单张立绘两种模式（rembg 多模型 + 色度键控兜底）。自动抠图在原 GIF 上效果不达标（u2net 丢呆毛发饰、isnet 空白误抠），**已恢复根目录 `yoimiya.gif` 原图作为默认形象**，背景由使用者自行处理
+- **抠图管线（工具）**：`scripts/optimize_sprite.py` 支持 GIF 动图与单张立绘两种模式（rembg 多模型 + 色度键控兜底）。自动抠图在原 GIF 上效果不达标（u2net 丢呆毛发饰、isnet 空白误抠），根目录 `yoimiya.gif` 原图保留（未被应用引用），背景由使用者自行处理
+- **形象基线**：仓库默认形象改为 `characters/yoimiya/sprite.svg`（原创矢量角色，8KB）；根目录 21MB GIF 不再打包
 - **设置持久化**：electron-store 保存位置/音效/置顶/音量/AI 开关，重启全恢复（位置恢复自动钳制回工作区）
 - **调试入口收敛**：开发者工具/重新加载仅开发模式注入；`start:win` 环境变量残留修复
 - **工程化**：MIT LICENSE、ESLint + Prettier + jsconfig、GitHub Actions CI（lint + test + build:dir，tag 自动发布并附 SHA256）、`node --test` 单元测试 23 例
@@ -15,6 +16,7 @@
 
 - **LLM 对话**：DeepSeek 兼容客户端（SSE 流式、`{text,emotion,motion}` JSON 三元组容错解析、流式 text 字段切句），思考中气泡 → 逐句显示；连续失败自动停用并回落本地台词（`.env.local` 配置 key）
 - **情绪-动作联动**：emotion 驱动气泡 5 套配色（CSS 变量，尾巴自动跟随），motion 驱动 wave/jump/laugh 关键帧
+- **情绪立绘集**：同一角色 6 个姿势（待机 + happy/excited/shy/sad/sleepy）随对话切换——双层交叉淡入、切换弹跳、持续呼吸、各情绪待机节奏、头顶情绪小粒子（⭐🎆💕💧💤）、气泡消失后自动回待机；六张共用同一取景框保证切换不跳位；角色框放大到 160px（窗口高度 300 → 350）
 - **主动搭话**：主进程 `powerMonitor` 检测系统空闲 ≥15 分钟，LLM/本地规则表双路径主动开口
 - **TTS 客户端**：GPT-SoVITS api_v2 封装 + wav 播放 + WebAudio 能量口型同步 PoC（服务不在线自动回落本地 MP3）
 - **Live2D PoC**：pixi-live2d-display + Cubism 4 示例模型验证页（`docs/poc/`）

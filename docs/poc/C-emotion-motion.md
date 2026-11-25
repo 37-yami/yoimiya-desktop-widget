@@ -11,6 +11,26 @@ LLM 输出的 `emotion` + `motion` 同时驱动三层表现，端到端打通 �
 | 角色动作 | `motion-wave/jump/laugh` 关键帧动画（2.2s 后自动移除类）                      | CSS + `applyEmotion()`                                          |
 | 触发源   | LLM 三元组 / 本地台词随机 / idle 系统台词                                     | `requestAiReply` / `showBubble` / `showSystemBubbleWithEmotion` |
 
+## 情绪立绘集（2026-11-25 落地：静态图"动"起来的方案）
+
+6 张同角色姿势图（`characters/yoimiya/emotions/`）+ 程序化动态，分层实现、互不覆盖：
+
+| 层                 | 负责                                            | 效果                                                          |
+| ------------------ | ----------------------------------------------- | ------------------------------------------------------------- |
+| `.yoimiya-widget`  | 悬浮                                            | 整体上下浮动（原有）                                          |
+| `.character-frame` | 情绪待机 `idle-*` / 事件动作 `motion-*`         | excited 弹跳、sleepy 摇晃、sad 下沉、shy 扭动；挥手/跳跃/大笑 |
+| `.character-inner` | 切换弹跳 `pose-pop` / 说话轻弹 `talking` / 口型 | 换姿势时先压扁再回弹；每句话到达轻弹                          |
+| `.sprite-breath`   | 持续呼吸                                        | 3.2s 周期的轻微缩放                                           |
+| `.sprite-layer` ×2 | 交叉淡入淡出                                    | 新图加载完才交接，不闪白                                      |
+
+- **情绪退场**：气泡消失 2.5s 后回到待机姿势（情绪是反应，不是常驻状态）
+- **小粒子**：⭐（happy）🎆（excited）💕（shy）💧（sad）💤（sleepy）从头顶飘起
+- **切换不跳位**：六张图在 `scripts/build_emotion_sprites.py` 中共用同一裁切框
+- **真实应用验证**（CDP 连入运行中的 main.js 逐情绪截图）：立绘/气泡色/待机类/粒子
+  全部对应；交叉过渡中间帧两层透明度并存；点击 → happy → 4s 自动隐藏 → 2.5s 后回待机 ✓
+- **局限**（如实说明）：单张静态图做不出眨眼、头发飘动这类画面内部形变；
+  需要的话走 AI 图生视频路线（manifest 的 `emotionSprites` 以后可指向视频片段）
+
 ## 情绪 → 视觉映射
 
 - `happy` 金橙（默认配色）
