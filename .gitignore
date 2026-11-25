@@ -23,3 +23,6 @@ Thumbs.db
 
 # 本地源素材（重生成用，不入库）
 .source-assets/
+
+# Python 缓存
+__pycache__/
