@@ -29,6 +29,9 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Preload regression check（沙箱 preload 必须可用）
+        run: npm run test:preload
+
       - name: Build (portable exe，tag 发布用)
         if: startsWith(github.ref, 'refs/tags/')
         run: npm run build

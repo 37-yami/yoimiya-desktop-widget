@@ -9,21 +9,22 @@
  *   ⑤ getSoundState()  — 查询初始音效状态
  *   ⑥ dragWindow*()    — 窗口拖拽（start/move/end 三段式）
  *   ⑦ notifyMouse*()   — 鼠标穿透状态切换
+ *
+ * ⚠️ 沙箱约束：渲染进程默认沙箱化（Electron 20+），本文件只能
+ *    require('electron')。任何本地模块（./config 等）或 Node 内置模块
+ *    （path/fs）都不能在这里 require —— 否则 preload 直接崩溃，
+ *    window.electronAPI 不存在，整个挂件的桌面模式全部失效。
+ *    需要主进程数据时走 IPC（见 character.js）。
  */
 
 const { contextBridge, ipcRenderer } = require('electron');
-const path = require('path');
-const { MANIFEST_PATH, CHARACTER_DIR } = require('./config');
 
-// 渲染层使用的相对资源根路径（如 characters/yoimiya）
-const CHARACTER_REL = path.relative(__dirname, CHARACTER_DIR).replaceAll('\\', '/');
-
-// 读取角色包 manifest（换角色 = 换 characters/<name> 目录，渲染层零改动）
-let characterManifest = null;
+// 角色包由主进程读取后经同步 IPC 下发（换角色 = 换 characters/<name> 目录）
+let characterPack = null;
 try {
-  characterManifest = require(MANIFEST_PATH);
+  characterPack = ipcRenderer.sendSync('get-character-pack');
 } catch (err) {
-  console.warn('⚠️ 角色包 manifest 加载失败，渲染层将使用内置兜底配置:', err.message);
+  console.warn('⚠️ 角色包获取失败，渲染层将使用内置兜底配置:', err.message);
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -31,8 +32,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   isElectron: true,
 
   // ---- 角色包（manifest.json 内容 + 资源根路径） ----
-  getCharacter: () => characterManifest,
-  characterDirName: CHARACTER_REL,
+  getCharacter: () => (characterPack && characterPack.manifest) || null,
+  characterDirName: (characterPack && characterPack.dirName) || 'characters/yoimiya',
 
   // ---- 音效开关（主进程 → 渲染进程） ----
   // callback 接收 (enabled: boolean)
