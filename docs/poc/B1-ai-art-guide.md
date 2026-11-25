@@ -1,34 +1,24 @@
-# P1-B1 实操指南：AI 形象生图 Prompt 包 + 集成管线
+# 自己生成 AI 形象：完整方法（P1-B1）
 
-> 状态：本会话内置生图服务两次返回 `Invalid credential`（不可用），
-> 本地无 SD 环境。**改为用户出图 + 本项目管线集成**的模式。
-> 生成一张你满意的图 ≈ B1 完成。
+> 结论先行：本机目前没有任何可用的生图通道（排查过程见 `NOTES.md`），
+> 所以形象由你出图、项目管线负责抠图和接入。**全程约 5 分钟。**
 
-## 一、去哪里生成（任选其一，网页版即可）
+## 第 1 步：出图（任选一个工具）
 
-| 工具 | 地址 | 说明 |
-|---|---|---|
-| 即梦 AI | jimeng.jianying.com | 字节系，中文 Prompt 友好，免费额度 |
-| 通义万相 | tongyi.aliyun.com/wanxiang | 阿里系，免费额度 |
-| 豆包 | doubao.com | 对话式生图 |
-| Midjourney / SD WebUI | — | 若已有账号/环境 |
+| 工具           | 地址                       | 说明                                 |
+| -------------- | -------------------------- | ------------------------------------ |
+| 即梦 AI        | jimeng.jianying.com        | 字节系，中文 Prompt 友好，有免费额度 |
+| 通义万相       | tongyi.aliyun.com/wanxiang | 阿里系，有免费额度                   |
+| 豆包           | doubao.com                 | 对话式生图，改图方便                 |
+| 有智谱 API key | 见下方「一键脚本」         | 可直接在本项目里命令行生成           |
 
-## 二、Prompt（复制即用）
-
-### 关键构图要求（务必保留在 Prompt 里）
-
-- `纯白背景 / pure solid white background` —— 抠图干净的前提
-- `全身 / full body`、`正面站立 / front-facing standing`、`居中留边 / centered with margins`
-- 不要复杂光效、不要背景元素
-
-### 姿势 1：挥手打招呼（默认立绘，推荐先出这张）
+### Prompt（直接复制）
 
 ```
-Q版动漫原创角色少女，烟花祭典主题，暖橙色双马尾头发配大红色蝴蝶结发饰，
-琥珀色眼睛，白色羽织外套带红橙色火焰纹样，内搭深蓝色和服裙，
-一只手拿着发光的小烟花棒，开心地笑着挥另一只手打招呼，
-全身正面站立居中，纯白色背景，柔和赛璐璐上色，干净利落的边缘，
-高质量动漫插画
+Q版动漫原创角色少女，烟花祭典主题，暖橙色双马尾，大红色蝴蝶结发饰，
+琥珀色大眼睛，白色羽织外套带红橙色火焰纹样，内搭深蓝色和服裙，
+手拿发光的小烟花棒，开心笑着挥手打招呼，全身正面站立居中，
+纯白色背景，柔和赛璐璐上色，干净利落的边缘，高质量动漫插画
 ```
 
 英文版（部分工具英文效果更好）：
@@ -42,30 +32,62 @@ front-facing, pure solid white background, soft cel shading, crisp clean
 edges, high quality anime illustration, centered with margins
 ```
 
-### 姿势 2：开心跳起（对应 motion=jump）
+### 四条硬性要求（决定抠图成败，务必保留在 Prompt 里）
 
-在姿势 1 基础上替换动作句：
-`开心地跳起来双手举起 / jumping joyfully with both arms raised, mid-air`
+1. **纯色背景**（纯白最稳）——不要场景、不要光效、不要渐变
+2. **全身** + 四周留边——头顶和脚不要贴边
+3. **正面/微侧站立**——大幅动作容易出肢体错误
+4. 发饰、呆毛等**细小部件与背景对比明显**——这是之前 GIF 抠图翻车的根源
 
-### 姿势 3：困倦打瞌睡（对应 emotion=sleepy）
+想换姿势只改动作句，例如：
 
-在姿势 1 基础上替换动作与表情：
-`困倦地眯眼打哈欠，双手扶着脸 / sleepy yawning with eyes closed, hands on cheeks`
+- 跳起：`开心地跳起来双手举起 / jumping joyfully with both arms raised, mid-air`
+- 困倦：`困倦地眯眼打哈欠，双手扶着脸 / sleepy yawning, hands on cheeks`
 
-## 三、拿到图之后（集成管线，一步完成）
+## 第 2 步：抠图 + 接入（两条命令）
 
-1. 把图放到项目 `.source-assets/`（任意名字，png/jpg/webp 均可）
-2. 告诉我文件名，或自己运行：
+把生成的图放进项目的 `.source-assets/` 目录（该目录不入库），然后：
 
 ```bash
-# 抠图 + 缩放 + 输出（AI 生图边缘干净，rembg 效果远好于 GIF 帧）
-python scripts/optimize_sprite.py --model birefnet-general --single <你的图>.png
+# ① 抠图 + 等比缩放到 480px，输出带透明通道的立绘
+python scripts/optimize_sprite.py --single .source-assets/你的图.png --out characters/yoimiya/sprite-ai.webp
+#    需要: pip install rembg onnxruntime（首次自动下载约 170MB 模型）
+#    想要无损就输出 .png；默认模型 isnet-general-use，细节保留不好时加 --model birefnet-general
+
+# ② 确认能正常加载（会真实启动渲染层检查立绘）
+npm run test:preload
 ```
 
-3. 替换 `characters/yoimiya/manifest.json` 的 `sprite` 字段即可生效
-   （静态立绘会自动叠加现有的 float 呼吸动画 + 点击特效，仍有"活"的感觉）
+然后把 `characters/yoimiya/manifest.json` 的 `sprite` 改成新文件：
 
-## 四、为什么不用宵宫本体 Prompt
+```json
+"sprite": "characters/yoimiya/sprite-ai.webp"
+```
 
-按任务书版权边界：仓库默认形象使用**原创角色**（同主题不同设计），
-宵宫素材作为用户自导入角色包保留在本地，不进入公开仓库。
+启动 `npm start` 即生效。立绘会自动叠加挂件原有的悬浮呼吸、点击星火、
+情绪气泡与动作动画，所以**静态图也是有"活"感的**。
+
+> 若用 `--out characters/yoimiya/sprite-ai.webp`，可先直接把 manifest 指过去再跑
+> `test:preload`——它失败会明确告诉你立绘没加载。
+
+## 附 A：有智谱 key 时的一键脚本
+
+```bash
+# Windows PowerShell
+$env:ZHIPU_API_KEY="你的智谱key"
+node scripts/gen-avatar-zhipu.mjs --out .source-assets/ai-character.png
+# 可选: --model cogview-4-250304（默认，约 ¥0.06/张）  --size 1024x1024
+```
+
+key 只从环境变量读取，不打印、不入库。生成后同样走第 2 步。
+
+## 附 B：零凭据备选（仓库自带）
+
+`characters/yoimiya/sprite.svg` 是一个代码手绘的原创矢量角色：天然透明、
+仅 8KB、内置眨眼/挥手/花火闪烁动画。想直接用它，把 manifest 的 `sprite` 改成
+`characters/yoimiya/sprite.svg` 即可（SVG 内嵌动画在 `<img>` 模式下实测会运行）。
+
+## 版权提醒
+
+按任务书边界：公开分发时默认形象用**原创角色**；宵宫素材仅作个人自用的
+自导入角色包，不要连同克隆音色/生成素材一起发布。

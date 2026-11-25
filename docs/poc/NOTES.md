@@ -1,15 +1,42 @@
 ﻿# P0/P1 PoC 总备忘（NOTES）
 
 > 本文件汇总所有「尝试了、但没完全跑通」的路线及原因，
-> 避免后续重复踩坑。日期：2026-11-24，分支：dev。
+> 避免后续重复踩坑。日期：2026-11-24 起持续更新，分支：dev。
 
-## P1-B1：AI 重制立绘（SDXL + LoRA）— 未实施
+## ⚠️ 严重回归（已修复）：沙箱 preload 里 require 本地模块
 
-- 原因：需要 ComfyUI/SD WebUI + SDXL 底模 + 宵宫 LoRA（Civitai），显存与下载量大，
-  本次环境不具备；且生成后仍需 rembg 抠图（该环节已具备）。
-- 原因②（2026-11-24 补充）：尝试用会话内置图像生成服务生成**原创**烟花祭典少女立绘
-  （按版权边界不直接复制宵宫设计），服务返回 `Invalid credential`，同样不可用。
-- 替代：P0 资源管线（rembg + WebP）已把原 GIF 黑边问题解决，B1 优先级下降。
+- **现象**：dev 分支自首个提交（1be1a29）起，挂件在桌面模式下整体失效 ——
+  无透明、无拖拽、无穿透切换、无语音、无设置/LLM。主进程与托盘看起来正常。
+- **根因**：给 `preload.js` 加了 `require('./config')` / `require('path')`。
+  Electron 20+ 渲染进程**默认沙箱化**，preload 只能 `require('electron')`，
+  其它模块一律 `module not found` → preload 启动即崩 → `window.electronAPI` 不存在。
+- **为何没被及时发现**：当时的冒烟测试只检查了「进程存活 + 设置文件生成」，
+  没有验证渲染层。这是验证方法的漏洞，不是偶然。
+- **修复**：角色包改由主进程 `character.js` 读取，经同步 IPC `get-character-pack`
+  下发给 preload；preload 不再 require 任何本地/Node 模块（保留沙箱，更安全）。
+- **防复发**：
+  - `npm run test:preload`（`scripts/check-preload.js`）用与 main.js 相同的沙箱配置
+    加载真实页面，断言 preload 无错、API 齐全、electron-mode 生效、立绘加载；
+    已接入 CI；已验证它对坏版本报 FAIL。
+  - 真实应用 E2E（CDP 连入运行中的 main.js）实测：设置 IPC ✓、拖拽结束位置写盘 ✓、
+    音量写盘 ✓、透明模式 ✓。
+- **教训**：Electron 应用的"能启动"≠"能用"。任何 preload 改动都必须跑
+  `npm run test:preload`。
+
+## P1-B1：AI 形象 — 改为用户自行出图 + 项目管线集成
+
+- 原因①：本地无 SD/ComfyUI 环境。
+- 原因②：会话内置生图服务（grok-imagine）两次 `Invalid credential`。
+- 原因③（2026-11-25 排查）：本机当前所有连接均无生图通道 ——
+  magpie 本地网关（`127.0.0.1:3425`）仅 13 个 GLM **文本**模型；
+  配置里的 `zhipu` 直连 provider 的 key 为空（残留项）；tokenshare 中转站仅 5 个文本模型、
+  `/v1/images/generations` 路由级 404。
+- 原因④：源 GIF 自动抠图两轮（u2net 丢呆毛发饰 / isnet 空白乱扣）均不达标，已放弃。
+- **可行路径（见 `B1-ai-art-guide.md`）**：
+  1. 用户用即梦/通义万相等出图 → `scripts/optimize_sprite.py --single` 抠图集成；
+  2. 有智谱 key 时：`ZHIPU_API_KEY=xxx node scripts/gen-avatar-zhipu.mjs` 一键生成；
+  3. 零凭据备选：`characters/yoimiya/sprite.svg`（代码手绘矢量角色，天然透明、
+     内置眨眼/挥手/花火动画，未设为默认，改 manifest.sprite 即可启用）。
 - 后续：按任务书 Prompt（`(masterpiece, best quality), yoimiya \(genshin impact\), full body…`
   - ControlNet OpenPose）在本地 SD 环境出 3–5 姿势，再跑 `scripts/optimize_sprite.py` 的抠图段。
 

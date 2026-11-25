@@ -104,9 +104,14 @@ def main() -> int:
         scale = args.size / max(w, h)
         if scale < 1:
             result = result.resize((round(w * scale), round(h * scale)), Image.LANCZOS)
-        result.save(out, format="WEBP", quality=args.quality, method=4)
+        # 按扩展名选格式：.png 无损 / .webp 有损（透明通道均保留）
+        fmt = "PNG" if out.suffix.lower() == ".png" else "WEBP"
+        save_kwargs = {"format": fmt}
+        if fmt == "WEBP":
+            save_kwargs.update(quality=args.quality, method=4)
+        result.save(out, **save_kwargs)
         size_kb = out.stat().st_size / 1024
-        print(f"完成: {out} ({size_kb:.0f}KB, {result.size[0]}x{result.size[1]})")
+        print(f"完成: {out} ({size_kb:.0f}KB, {result.size[0]}x{result.size[1]}, {fmt})")
         return 0
 
     gif = Image.open(src)
