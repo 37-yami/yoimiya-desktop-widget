@@ -21,11 +21,11 @@
 | 🖱️ **自由拖拽**        | 按住角色任意位置拖动，松手带惯性滑行与边界回弹，高 DPI 不失灵                         |
 | 🎮 **全屏避让**        | 检测到全屏应用自动降级透明且完全不可交互，退出游戏自动恢复                            |
 | 🔔 **系统托盘**        | 隐藏后托盘图标一键恢复，可一键回到默认位置（16/32 双尺寸图标）                        |
-| ⚙️ **右键菜单**        | 音效 / 全屏避让 / 置顶 / 音量滑条 / AI 对话 / 回到默认位置                            |
+| ⚙️ **右键菜单**        | 音效 / 全屏避让 / 置顶 / 音量滑条 / 形象切换 / AI 对话 / 回到默认位置                 |
 | ⚡ **点击穿透**        | 透明区域不阻挡桌面图标和其他窗口                                                      |
 | 💾 **设置持久化**      | 位置 / 音量 / 开关状态重启后全部恢复                                                  |
 | 😴 **待机台词**        | 长时间未交互 / 整点 / 深夜触发角色自言自语                                            |
-| 🤖 **AI 对话（试点）** | 可选接入 DeepSeek，流式回复 + 情绪/动作联动，失败自动回落本地台词                     |
+| 🤖 **AI 对话（可选）** | 可选接入 DeepSeek，流式回复 + 情绪/动作联动，失败自动回落本地台词                     |
 | 📦 **绿色免安装**      | 解压即用，自带启动器与文件夹内快捷方式生成脚本                                        |
 
 ---
@@ -34,31 +34,31 @@
 
 ```
 yoimiya-desktop-widget/
-├── main.js                    ← Electron 主进程（窗口 / 托盘 / 菜单 / 全屏检测 / 拖拽+惯性 / LLM/TTS 接线）
+├── main.js                    ← Electron 主进程（窗口 / 托盘 / 菜单 / 全屏检测 / 拖拽+惯性 / LLM/TTS 调用）
 ├── preload.js                 ← contextBridge 安全桥接（渲染 ↔ 主进程通信）
 ├── yoimiya-widget.html        ← 渲染进程（CSS 动画 + 交互 + AI 气泡 + idle 状态机 + 音量滑条）
 ├── config.js                  ← 窗口尺寸 / 边距 / 检测阈值等全局常量
-├── store.js                   ← 设置持久化（electron-store 包装，含内存兜底）
+├── store.js                   ← 设置持久化（electron-store）
 ├── env.js                     ← 开发模式判定 / ELECTRON_RUN_AS_NODE 清理
-├── character.js               ← 角色包加载（主进程读取，经 IPC 下发——preload 沙箱里不能 require 本地模块）
+├── character.js               ← 角色包加载（主进程读取后下发给渲染层）
 ├── llm.js                     ← DeepSeek 兼容客户端（SSE 流式 + JSON 三元组解析 + 流式切句）
-├── tts.js                     ← GPT-SoVITS api_v2 客户端（PoC，服务不在线自动降级）
+├── tts.js                     ← GPT-SoVITS api_v2 客户端（服务不在线时自动改用本地语音）
 ├── yoimiya.gif                ← 原形态：角色动图原图（21MB，默认形象）
 ├── characters/yoimiya/        ← ★ 角色包（换角色 = 换目录，渲染层零改动）
 │   ├── manifest.json          ← { name, sprite, emotionSprites, lines[], voices[], bubbleStyle }
 │   ├── emotions/*.webp        ← AI 形态：情绪立绘集（idle/happy/excited/shy/sad/sleepy）
 │   └── voices/voice1-5.mp3    ← 官方语音（小写 .mp3，asar 兼容）
 ├── tray-icon.png / -32.png    ← 托盘图标（16×16 + 32×32 高 DPI）
-├── scripts/                   ← 构建 / 启动器 / 资源管线 / PoC 验证脚本
-│   ├── optimize_sprite.py     ← 抠图管线（GIF 动图 / --single 单图，rembg 多模型 + chroma 兜底）
-│   ├── verify_sprite.py       ← 资源验收（体积/帧率/尺寸/四角 alpha）
-│   ├── test-deepseek.mjs      ← LLM 全链路实测脚本
-│   ├── check-preload.js       ← preload 回归检查（npm run test:preload，CI 必跑）
+├── scripts/                   ← 构建 / 启动器 / 立绘处理 / 测试脚本
+│   ├── optimize_sprite.py     ← 抠图（GIF 动图 / --single 单图，rembg 多模型 + chroma 兜底）
+│   ├── build_emotion_sprites.py ← 多张同角色图 → 抠图/清杂点/统一取景 → 情绪立绘集
+│   ├── verify_sprite.py       ← 立绘验收（体积/帧率/尺寸/四角 alpha）
 │   ├── gen-avatar-zhipu.mjs   ← 智谱 CogView 一键生成 AI 立绘（需 ZHIPU_API_KEY）
-│   └── build_emotion_sprites.py ← 多张同角色图 → 抠图/清杂点/统一取景 → 情绪立绘集
-├── tests/                     ← node --test 单元测试（配置/存储/env/角色包/llm/tts）
-├── docs/poc/                  ← P1 AI 试点 PoC 报告 + NOTES.md
-├── .env.local                 ← AI 接口配置（gitignored，不入库）
+│   ├── test-deepseek.mjs      ← AI 接口连通测试
+│   └── check-preload.js       ← 启动自检（npm run test:preload）
+├── tests/                     ← node --test 单元测试
+├── docs/poc/                  ← AI 对话 / 语音克隆 / 立绘的说明与实验记录
+├── .env.local                 ← AI 对话接口配置（可选，自行创建）
 ├── build/icon.ico             ← 应用图标
 └── package.json
 ```
@@ -158,13 +158,13 @@ npm install
 
 ### 操作说明
 
-| 操作                        | 效果                                                     |
-| --------------------------- | -------------------------------------------------------- |
-| **左键点击角色**            | 随机播放语音 + 弹出对话气泡（4 秒后自动消失）            |
-| **按住角色拖动**            | 移动挂件到任意位置（自动限制在屏幕内，拖不丢）           |
-| **右键**                    | 弹出设置菜单（音效 / 全屏 / 置顶 / 回到默认位置 / 退出） |
-| **点击托盘图标**            | 恢复被隐藏的窗口                                         |
-| **托盘右键 → 回到默认位置** | 挂件回到屏幕右下角（挂件找不到了就用它）                 |
+| 操作                        | 效果                                                                                 |
+| --------------------------- | ------------------------------------------------------------------------------------ |
+| **左键点击角色**            | 随机播放语音 + 弹出对话气泡（4 秒后自动消失）                                        |
+| **按住角色拖动**            | 移动挂件到任意位置（自动限制在屏幕内，拖不丢）                                       |
+| **右键**                    | 弹出设置菜单（音效 / 全屏 / 置顶 / 音量 / 形象切换 / AI 对话 / 回到默认位置 / 退出） |
+| **点击托盘图标**            | 恢复被隐藏的窗口                                                                     |
+| **托盘右键 → 回到默认位置** | 挂件回到屏幕右下角（挂件找不到了就用它）                                             |
 
 ---
 
@@ -182,13 +182,13 @@ npm install
 
 ---
 
-## 🤖 AI 对话（P1 试点，可选）
+## 🤖 AI 对话（可选）
 
 右键菜单勾选「💬 AI 对话」后，点击角色即调用 LLM 生成符合宵宫性格的回复
 （流式逐句显示 + 情绪联动气泡/动作）。**任何失败都会自动回落本地台词与语音，
 挂件本体永不依赖外部服务。**
 
-### 配置 `.env.local`（项目根目录，已被 .gitignore 忽略）
+### 配置 `.env.local`（项目根目录）
 
 ```ini
 DEEPSEEK_API_KEY=sk-xxxx
@@ -196,11 +196,11 @@ DEEPSEEK_MODEL=deepseek-flash
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 ```
 
-- 官方接口已验证可用模型：`deepseek-flash` / `deepseek-v4-pro`；
+- 官方接口可用模型：`deepseek-flash` / `deepseek-v4-pro`；
 - 使用第三方中转站时改 `DEEPSEEK_BASE_URL` 与对应模型名即可
-  （已实测示例：`https://tokenshare.net/v1` + `deepseek-v4.1-flash`）；
+  （例如 `https://tokenshare.net/v1` + `deepseek-v4.1-flash`）；
 - 验证命令：`node scripts/test-deepseek.mjs`
-- 语音 AI 化（GPT-SoVITS 音色克隆）与 Live2D 等 PoC 见 `docs/poc/` 目录报告。
+- 语音克隆（GPT-SoVITS）与 Live2D 的说明见 `docs/poc/` 目录。
 
 ---
 
@@ -226,7 +226,9 @@ DEEPSEEK_BASE_URL=https://api.deepseek.com
 ### 替换角色形象
 
 - **方式一（情绪立绘集，效果最好）**：准备同一角色的 6 张图（纯色背景、全身、
-  每张一个姿势），按下表命名后放进 `.source-assets/ai/`，一条命令完成抠图与接入：
+  每张一个姿势），按下表命名后放进一个文件夹，一条命令完成抠图与接入
+  （脚本默认读取项目下的 `.source-assets/ai/`，这个文件夹需要自己新建；
+  图片放在别处则加 `--input-dir 文件夹路径`）：
 
   | 文件名                                                             | 姿势             |
   | ------------------------------------------------------------------ | ---------------- |
@@ -237,15 +239,15 @@ DEEPSEEK_BASE_URL=https://api.deepseek.com
   python scripts/build_emotion_sprites.py     # → characters/yoimiya/emotions/*.webp
   ```
 
-  脚本会用**同一个裁切框**处理全部图片（否则切换情绪时角色会跳位），并输出一张
-  带脚底基准线的质检图 `.source-assets/ai/_qa-sheet.png`。Prompt 与出图方法见
+  脚本会用**同一个裁切框**处理全部图片（否则切换情绪时角色会跳位），并在图片所在
+  文件夹输出一张带脚底基准线的质检图 `_qa-sheet.png`。出图用的 Prompt 与方法见
   `docs/poc/B1-ai-art-guide.md`。六个姿势齐全时挂件才会启用情绪集，
   缺任何一张都整体回落到单张 `sprite`；
 
 - **方式二（单张 AI 立绘）**：生成一张纯色背景的全身立绘后抠图接入：
 
   ```bash
-  python scripts/optimize_sprite.py --single .source-assets/你的图.png --out characters/yoimiya/sprite-ai.webp
+  python scripts/optimize_sprite.py --single 你的图.png --out characters/yoimiya/sprite-ai.webp
   ```
 
   再把 `manifest.json` 的 `sprite` 指向新文件即可（立绘会自动叠加悬浮/呼吸/情绪动画）；
@@ -301,7 +303,7 @@ DEEPSEEK_BASE_URL=https://api.deepseek.com
 | `npm run start:win`    | 启动（强制清除 ELECTRON_RUN_AS_NODE）                 |
 | `npm run dev`          | 启动 + 开发者工具                                     |
 | `npm test`             | 单元测试（node --test）                               |
-| `npm run test:preload` | preload 回归检查（真实启动渲染层，改 preload 后必跑） |
+| `npm run test:preload` | 启动自检（真实加载页面，检查立绘与 preload 是否正常） |
 | `npm run lint`         | ESLint 检查                                           |
 | `npm run format`       | Prettier 格式化                                       |
 | `npm run build:green`  | 构建绿色免安装包 zip（推荐分发用）                    |
