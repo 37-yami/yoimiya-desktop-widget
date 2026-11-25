@@ -71,6 +71,23 @@ test('真实角色包：六个姿势的情绪立绘集全部解析成功且文�
   }
 });
 
+test('manifest 的 lineEmotions / lineMotions 与 lines 等长且取值合法（本地台词各带情绪）', () => {
+  const { loadCharacterPack } = require('../character.js');
+  const { EMOTIONS, MOTIONS } = require('../llm.js');
+  const m = loadCharacterPack().manifest;
+  assert.ok(Array.isArray(m.lineEmotions), '缺少 lineEmotions');
+  assert.ok(Array.isArray(m.lineMotions), '缺少 lineMotions');
+  assert.equal(m.lineEmotions.length, m.lines.length, 'lineEmotions 应与 lines 等长');
+  assert.equal(m.lineMotions.length, m.lines.length, 'lineMotions 应与 lines 等长');
+  for (const e of m.lineEmotions) {
+    assert.ok(EMOTIONS.includes(e), `非法情绪：${e}`);
+  }
+  for (const mo of m.lineMotions) {
+    assert.ok(mo === null || MOTIONS.includes(mo), `非法动作：${mo}`);
+  }
+  assert.ok(new Set(m.lineEmotions).size >= 2, '本地台词应至少覆盖两种情绪，否则点击时看不到切换');
+});
+
 test('normalizeSpriteMode：AI 形态仅在情绪立绘集可用时生效，否则退回原形态', () => {
   const { normalizeSpriteMode } = require('../character.js');
   assert.equal(normalizeSpriteMode('original', true), 'original');

@@ -101,10 +101,17 @@ app.whenReady().then(async () => {
     state.afterWelcome = activeSrc();
     state.modeAtStart = window.__widget ? window.__widget.getMode() : null;
     if (window.__widget && sprites) {
-      // 原形态 → AI 形态：从待机姿势开始
+      // 切到 AI 形态：从待机姿势开始
       window.__widget.applySpriteMode('ai');
       await new Promise((r) => setTimeout(r, 450));
       state.aiIdle = { mode: window.__widget.getMode(), active: activeSrc() };
+      // AI 形态下连续点击（本地台词）：情绪应每次都换一种，且画面与情绪一致
+      state.localClicks = [];
+      for (let k = 0; k < 6; k++) {
+        window.__widget.showBubble();
+        await new Promise((r) => setTimeout(r, 260));
+        state.localClicks.push({ emo: window.__widget.getEmotion(), active: activeSrc() });
+      }
       // AI 形态下随情绪换图
       window.__widget.applyEmotion('excited', null);
       await new Promise((r) => setTimeout(r, 450));
@@ -170,6 +177,23 @@ app.whenReady().then(async () => {
       'AI 形态下随情绪换图（excited）',
       `${e.pose} → ${e.active}`
     );
+    // 本地点击路径：台词自带情绪 → 每次点击情绪都变、立绘跟随
+    const clicks = info.localClicks || [];
+    const localEmotions = buildCharacterPack().manifest.lineEmotions || [];
+    const alternates = clicks.every((c, i) => i === 0 || c.emo !== clicks[i - 1].emo);
+    const matches = clicks.every((c) => (c.active || '').endsWith(`/emotions/${c.emo}.webp`));
+    const legal = clicks.every((c) => localEmotions.includes(c.emo));
+    check(
+      clicks.length === 6 && alternates,
+      '点击时情绪每次都换一种（本地台词自带情绪）',
+      clicks.map((c) => c.emo).join(' → ')
+    );
+    check(
+      matches,
+      '点击时立绘与情绪一致',
+      clicks.map((c) => (c.active || '').split('/').pop()).join(' → ')
+    );
+    check(legal, '点击产生的情绪均在 manifest.lineEmotions 标注范围内');
     const b = info.backOriginal || {};
     check(
       b.mode === 'original' && (b.active || '').endsWith(ORIG),

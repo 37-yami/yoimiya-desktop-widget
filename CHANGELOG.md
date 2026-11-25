@@ -18,6 +18,7 @@
 - **LLM 对话**：DeepSeek 兼容客户端（SSE 流式、`{text,emotion,motion}` JSON 三元组容错解析、流式 text 字段切句），思考中气泡 → 逐句显示；连续失败自动停用并回落本地台词（`.env.local` 配置 key）
 - **情绪-动作联动**：emotion 驱动气泡 5 套配色（CSS 变量，尾巴自动跟随），motion 驱动 wave/jump/laugh 关键帧
 - **情绪立绘集**：同一角色 6 个姿势（待机 + happy/excited/shy/sad/sleepy）随对话切换——双层交叉淡入、切换弹跳、持续呼吸、各情绪待机节奏、头顶情绪小粒子（⭐🎆💕💧💤）、气泡消失后自动回待机；六张共用同一取景框保证切换不跳位；角色框放大到 160px（窗口高度 300 → 350）
+- **本地台词自带情绪**：`manifest.json` 新增 `lineEmotions` / `lineMotions`，点击时按台词切换情绪，并优先挑与当前情绪不同的台词（每次点击都有可见变化）；自言自语规则表每条带情绪，五种情绪在不接 AI 对话时都能触发
 - **主动搭话**：主进程 `powerMonitor` 检测系统空闲 ≥15 分钟，LLM/本地规则表双路径主动开口
 - **TTS 客户端**：GPT-SoVITS api_v2 封装 + wav 播放 + WebAudio 能量口型同步 PoC（服务不在线自动回落本地 MP3）
 - **Live2D PoC**：pixi-live2d-display + Cubism 4 示例模型验证页（`docs/poc/`）

@@ -1186,30 +1186,52 @@
       /** 记录上一次显示的台词索引，用于避免连续两次抽到同一句 */
       let lastMessageIndex = -1;
 
+      /** 当前正在表现的情绪（由 applyEmotion 更新；用于"下次换一种情绪"） */
+      let currentEmotion = null;
+
+      /** 每条本地台词自带的情绪 / 动作（manifest 的 lineEmotions / lineMotions，可选） */
+      const LINE_EMOTIONS = Array.isArray(character?.lineEmotions)
+        ? character.lineEmotions
+        : [];
+      const LINE_MOTIONS = Array.isArray(character?.lineMotions)
+        ? character.lineMotions
+        : [];
+
+      /** 第 i 条台词的情绪：标注合法则用，否则回落 happy */
+      function lineEmotionAt(i) {
+        const e = LINE_EMOTIONS[i];
+        return EMOTION_NAMES.includes(e) ? e : 'happy';
+      }
+
+      /** 第 i 条台词的动作：标注合法则用；未标注时 35% 概率来个挥手 */
+      function lineMotionAt(i) {
+        const m = LINE_MOTIONS[i];
+        if (MOTION_MAP[m]) return m;
+        return Math.random() < 0.35 ? 'wave' : null;
+      }
+
       /**
        * 从 MESSAGES 数组中随机抽取一条台词
        *
-       * 去重策略：
-       *   - 如果数组只有 1 条台词，直接返回（无法去重）
-       *   - 如果数组有 2 条或以上，用 do...while 循环跳过上一次的索引
-       *   - 确保用户每次点击都能看到不同的台词
+       * 抽取策略（逐层放宽，尽量让每次点击都有可见变化）：
+       *   ① 避开上一次的台词
+       *   ② 台词带情绪标注时，优先挑与当前情绪不同的一条
+       *      （否则连点两条同情绪的台词，立绘和气泡都看不出变化）
+       *   ③ ②无解时（剩下的全是同情绪）退回只避开上一条
        *
        * @returns {{ index: number, text: string }}
        *   index - 台词在 MESSAGES 中的索引，用于匹配音频
        *   text  - 台词文本内容
        */
       function pickRandomMessage() {
-        let idx;
-
         if (MESSAGES.length <= 1) {
-          // 只有一条台词，直接返回
-          idx = 0;
-        } else {
-          // 随机抽取，避开上一次的索引
-          do {
-            idx = Math.floor(Math.random() * MESSAGES.length);
-          } while (idx === lastMessageIndex);
+          lastMessageIndex = 0;
+          return { index: 0, text: MESSAGES[0] };
         }
+        const notLast = MESSAGES.map((_, i) => i).filter((i) => i !== lastMessageIndex);
+        const changed = notLast.filter((i) => lineEmotionAt(i) !== currentEmotion);
+        const pool = changed.length > 0 ? changed : notLast;
+        const idx = pool[Math.floor(Math.random() * pool.length)];
 
         lastMessageIndex = idx;
         return { index: idx, text: MESSAGES[idx] };
@@ -1300,8 +1322,8 @@
         // ③ 重置 4 秒自动隐藏计时器
         resetAutoHideTimer();
 
-        // ③' 本地台词走默认 happy 配色；偶尔来个随机小动作增加生气
-        applyEmotion('happy', Math.random() < 0.35 ? 'wave' : null);
+        // ③' 本地台词自带的情绪与动作（manifest 标注）→ 立绘姿势、气泡配色、动作随之变化
+        applyEmotion(lineEmotionAt(index), lineMotionAt(index));
 
         // ④ 显示气泡（先移除隐藏状态，再添加显示状态）
         bubble.classList.remove('hide');
@@ -1570,8 +1592,8 @@
           if (aiChatEnabled && window.electronAPI.llmChat) {
             requestAiReply(buildProactiveContext(info));
           } else {
-            // LLM 未启用 → 本地规则表兜底（睡着等待的语气）
-            showSystemBubbleWithEmotion(pickFrom(IDLE_LINES), 'sleepy', null);
+            // LLM 未启用 → 本地规则表兜底
+            showSystemBubbleWithEmotion(pickSystemLine('idle'));
           }
         });
       }
@@ -1657,6 +1679,7 @@
        */
       function applyEmotion(emotion, motion) {
         const emo = EMOTION_NAMES.includes(emotion) ? emotion : 'happy';
+        currentEmotion = emo; // 供下次点击"优先换一种情绪"
         clearTimeout(idleReturnTimer); // 新情绪到来，取消"回待机"的排程
 
         // ① 气泡配色
@@ -1713,8 +1736,12 @@
         applyEmotion,
         setPose,
         applySpriteMode,
+        showBubble,
+        pickSystemLine,
+        showSystemBubbleWithEmotion,
         getPose: () => currentPose,
         getMode: () => spriteMode,
+        getEmotion: () => currentEmotion,
       };
 
       // ========================================================
@@ -1783,22 +1810,35 @@
         nightRepeatEveryMs: 30 * 60 * 1000, // 深夜台词冷却 30 分钟
       };
 
-      const IDLE_LINES = [
-        '呼……趁没人，悄悄练习一下新烟花的手势～',
-        '（小声哼着夏祭的曲子）',
-        '烟花筒也要定期保养才行呐～',
-        '（数着今天想到的烟花配色）',
-      ];
-      const HOUR_LINES = [
-        '整点报时！这一小时的烟花也请多指教～',
-        '咚——整点啦！要不要抬头看看天？',
-        '又是新的一小时，烟花工匠继续营业！',
-      ];
-      const NIGHT_LINES = [
-        '夜深了……烟花配方的灵感都来自星星呢✨',
-        '这么晚还不睡，明天要看烟花可起不来了哦？',
-        '唔……我要眯一会儿了，晚安～🎆',
-      ];
+      /**
+       * 系统台词规则表（自言自语，不出声）
+       * 每条自带情绪 / 动作 —— 让五种情绪在不接 AI 对话时也都触发得到：
+       *   点击的语音台词 → happy / excited（见 manifest 的 lineEmotions）
+       *   待机自言自语   → shy / happy / sad
+       *   深夜           → sleepy
+       */
+      const SYSTEM_LINES = {
+        idle: [
+          { text: '呼……趁没人，悄悄练习一下新烟花的手势～', emotion: 'shy' },
+          { text: '有人在看吗……有点不好意思呢', emotion: 'shy' },
+          { text: '（小声哼着夏祭的曲子）', emotion: 'happy' },
+          { text: '（数着今天想到的烟花配色）', emotion: 'happy' },
+          { text: '烟花筒也要定期保养才行呐～', emotion: 'happy' },
+          { text: '唔……刚才那一发好像失败了……下次一定行！', emotion: 'sad' },
+          { text: '要是今晚下雨，烟花就放不成了……', emotion: 'sad' },
+        ],
+        hour: [
+          { text: '整点报时！这一小时的烟花也请多指教～', emotion: 'happy', motion: 'wave' },
+          { text: '咚——整点啦！要不要抬头看看天？', emotion: 'excited', motion: 'jump' },
+          { text: '又是新的一小时，烟花工匠继续营业！', emotion: 'happy' },
+        ],
+        night: [
+          { text: '夜深了……烟花配方的灵感都来自星星呢✨', emotion: 'sleepy' },
+          { text: '这么晚还不睡，明天要看烟花可起不来了哦？', emotion: 'sleepy' },
+          { text: '唔……我要眯一会儿了，晚安～🎆', emotion: 'sleepy' },
+        ],
+      };
+      const lastSystemPick = { idle: -1, hour: -1, night: -1 };
 
       let lastInteractAt = Date.now();
       let lastIdleBubbleAt = 0;
@@ -1810,8 +1850,16 @@
         lastInteractAt = Date.now();
       }
 
-      function pickFrom(arr) {
-        return arr[Math.floor(Math.random() * arr.length)];
+      /** 从某一类系统台词里随机取一条，避开该类上一条 */
+      function pickSystemLine(kind) {
+        const list = SYSTEM_LINES[kind] || [];
+        if (list.length <= 1) return list[0];
+        let i;
+        do {
+          i = Math.floor(Math.random() * list.length);
+        } while (i === lastSystemPick[kind]);
+        lastSystemPick[kind] = i;
+        return list[i];
       }
 
       /** 系统台词气泡（idle/整点/深夜共用：只显示气泡，不播语音） */
@@ -1824,10 +1872,11 @@
         resetAutoHideTimer();
       }
 
-      /** 系统台词（带情绪联动：深夜=sleepy 配色，整点=happy+wave） */
-      function showSystemBubbleWithEmotion(text, emotion, motion) {
-        applyEmotion(emotion, motion);
-        showSystemBubble(text);
+      /** 系统台词：先按该条自带的情绪联动（立绘 / 气泡 / 动作），再显示气泡 */
+      function showSystemBubbleWithEmotion(entry) {
+        if (!entry) return;
+        applyEmotion(entry.emotion, entry.motion || null);
+        showSystemBubble(entry.text);
       }
 
       setInterval(
@@ -1839,7 +1888,7 @@
           // ① 整点问候（每小时至多一次）
           if (d.getMinutes() === 0 && lastHourNotified !== d.getHours()) {
             lastHourNotified = d.getHours();
-            showSystemBubbleWithEmotion(pickFrom(HOUR_LINES), 'happy', 'wave');
+            showSystemBubbleWithEmotion(pickSystemLine('hour'));
             return;
           }
 
@@ -1849,17 +1898,17 @@
             now - lastNightBubbleAt > IDLE_CONFIG.nightRepeatEveryMs
           ) {
             lastNightBubbleAt = now;
-            showSystemBubbleWithEmotion(pickFrom(NIGHT_LINES), 'sleepy', null);
+            showSystemBubbleWithEmotion(pickSystemLine('night'));
             return;
           }
 
-          // ③ 长时间未交互 → 待机台词（冷却 4 分钟）
+          // ③ 长时间未交互 → 待机自言自语（冷却 4 分钟）
           if (
             idleMs > IDLE_CONFIG.idleAfterMs &&
             now - lastIdleBubbleAt > IDLE_CONFIG.idleRepeatEveryMs
           ) {
             lastIdleBubbleAt = now;
-            showSystemBubbleWithEmotion(pickFrom(IDLE_LINES), 'sleepy', null);
+            showSystemBubbleWithEmotion(pickSystemLine('idle'));
           }
         },
         30 * 1000
