@@ -39,3 +39,71 @@ test('manifest 缺失时 loadCharacterPack 返回 null manifest 而不抛错', (
   assert.equal(pack.manifest, null);
   assert.equal(pack.dirName, 'characters/yoimiya');
 });
+
+test('resolveEmotionSprites：manifest 无 emotionSprites 时返回 null（回落单张 sprite）', () => {
+  const { resolveEmotionSprites } = require('../character.js');
+  assert.equal(resolveEmotionSprites({ manifest: null, dirName: 'characters/yoimiya' }), null);
+  assert.equal(resolveEmotionSprites({ manifest: { sprite: 'a.png' }, dirName: 'x' }), null);
+});
+
+test('resolveEmotionSprites：完整合法的情绪立绘集原样返回（路径相对项目根）', () => {
+  const { resolveEmotionSprites } = require('../character.js');
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pack-'));
+  const sprites = {};
+  for (const e of ['idle', 'happy', 'excited', 'shy', 'sad', 'sleepy']) {
+    fs.writeFileSync(path.join(tmp, `${e}.webp`), 'x');
+    sprites[e] = `${path.basename(tmp)}/${e}.webp`;
+  }
+  const root = path.dirname(tmp);
+  const r = resolveEmotionSprites({ manifest: { emotionSprites: sprites }, dirName: 'd' }, root);
+  assert.deepEqual(Object.keys(r).sort(), ['excited', 'happy', 'idle', 'sad', 'shy', 'sleepy']);
+  fs.rmSync(tmp, { recursive: true, force: true });
+});
+
+test('真实角色包：六个姿势的情绪立绘集全部解析成功且文件存在', () => {
+  const { buildCharacterPack, POSES } = require('../character.js');
+  const pack = buildCharacterPack();
+  assert.ok(pack.emotionSprites, 'manifest.emotionSprites 应完整且文件齐全');
+  for (const p of POSES) {
+    assert.ok(fs.existsSync(path.join(ROOT, pack.emotionSprites[p])), `缺少 ${p} 立绘`);
+  }
+});
+
+test('resolveEmotionSprites：缺少必需情绪或文件不存在时返回 null（整组降级，避免半套立绘跳图）', () => {
+  const { resolveEmotionSprites } = require('../character.js');
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pack-'));
+  const base = path.basename(tmp);
+  const full = {};
+  for (const e of ['idle', 'happy', 'excited', 'shy', 'sad', 'sleepy']) {
+    full[e] = `${base}/${e}.webp`;
+  }
+  // 文件都没写 → 全部不存在
+  assert.equal(
+    resolveEmotionSprites({ manifest: { emotionSprites: full }, dirName: 'd' }, path.dirname(tmp)),
+    null
+  );
+  // 写齐文件后应通过
+  for (const e of Object.keys(full)) fs.writeFileSync(path.join(tmp, `${e}.webp`), 'x');
+  assert.ok(
+    resolveEmotionSprites({ manifest: { emotionSprites: full }, dirName: 'd' }, path.dirname(tmp))
+  );
+  // 去掉 sleepy → 不完整
+  delete full.sleepy;
+  assert.equal(
+    resolveEmotionSprites({ manifest: { emotionSprites: full }, dirName: 'd' }, path.dirname(tmp)),
+    null
+  );
+  // 未知情绪键被忽略（不影响合法性）
+  full.sleepy = `${base}/sleepy.webp`;
+  full.angry = `${base}/nope.webp`;
+  const r = resolveEmotionSprites(
+    { manifest: { emotionSprites: full }, dirName: 'd' },
+    path.dirname(tmp)
+  );
+  assert.equal(r.angry, undefined, '未知情绪不应出现在结果里');
+  fs.rmSync(tmp, { recursive: true, force: true });
+});

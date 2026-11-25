@@ -1,8 +1,17 @@
 {
   "name": "yoimiya",
-  "displayName": "长野原宵宫",
-  "version": 1,
-  "sprite": "yoimiya.gif",
+  "displayName": "宵宫（Q版）",
+  "version": 2,
+  "sprite": "characters/yoimiya/sprite.svg",
+  "emotionSprites": {
+    "idle": "characters/yoimiya/emotions/idle.webp",
+    "happy": "characters/yoimiya/emotions/happy.webp",
+    "excited": "characters/yoimiya/emotions/excited.webp",
+    "shy": "characters/yoimiya/emotions/shy.webp",
+    "sad": "characters/yoimiya/emotions/sad.webp",
+    "sleepy": "characters/yoimiya/emotions/sleepy.webp"
+  },
+  "art": "AI 生成的 Q版情绪立绘集（即梦，参考图生成）——仅限个人自用，不得随仓库公开分发",
   "lines": [
     "烟花易逝，人情长存！✨",
     "风好大，声音都被吹回来啦～🎆",

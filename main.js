@@ -41,7 +41,7 @@ const {
   FULLSCREEN_POLL_INTERVAL,
 } = require('./config');
 const { initStore, getSetting, setSetting } = require('./store');
-const { loadCharacterPack, registerCharacterIpc } = require('./character');
+const { buildCharacterPack, registerCharacterIpc } = require('./character');
 const {
   loadLlmConfig,
   chatComplete,
@@ -54,7 +54,7 @@ const { checkTtsHealth, ttsLocal } = require('./tts');
 initStore();
 
 // 角色包同步 IPC —— 必须在 createWindow 之前注册（preload 启动时会同步请求）
-registerCharacterIpc(ipcMain, loadCharacterPack());
+registerCharacterIpc(ipcMain, buildCharacterPack());
 
 // ============================================================
 // 🔧 全局状态

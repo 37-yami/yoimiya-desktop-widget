@@ -34,6 +34,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ---- 角色包（manifest.json 内容 + 资源根路径） ----
   getCharacter: () => (characterPack && characterPack.manifest) || null,
   characterDirName: (characterPack && characterPack.dirName) || 'characters/yoimiya',
+  // 情绪立绘集（主进程已校验齐全；不完整时为 null → 渲染层回落单张 sprite）
+  getEmotionSprites: () => (characterPack && characterPack.emotionSprites) || null,
 
   // ---- 音效开关（主进程 → 渲染进程） ----
   // callback 接收 (enabled: boolean)

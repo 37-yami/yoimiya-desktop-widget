@@ -40,4 +40,46 @@ function registerCharacterIpc(ipcMain, pack) {
   });
 }
 
-module.exports = { CHARACTER_DIR_NAME, loadCharacterPack, registerCharacterIpc };
+/** 情绪立绘集必须齐全的姿势（idle = 待机，其余与 llm.js EMOTIONS 对应） */
+const POSES = ['idle', 'happy', 'excited', 'shy', 'sad', 'sleepy'];
+
+/**
+ * 解析并校验情绪立绘集（manifest.emotionSprites）。
+ * 规则：六个姿势必须全部存在且文件都在，否则整组返回 null
+ *（回落到单张 sprite）——半套立绘会导致切换时跳图，宁可不用。
+ * @param {{manifest: object|null}} pack
+ * @param {string} root 项目根目录（sprite 路径相对它）
+ * @returns {Record<string, string>|null} 情绪 → 相对路径
+ */
+function resolveEmotionSprites(pack, root = __dirname) {
+  const sprites = pack && pack.manifest && pack.manifest.emotionSprites;
+  if (!sprites || typeof sprites !== 'object') return null;
+  const out = {};
+  for (const pose of POSES) {
+    const rel = sprites[pose];
+    if (typeof rel !== 'string' || !rel) return null;
+    if (!fs.existsSync(path.join(root, rel))) return null;
+    out[pose] = rel;
+  }
+  return out;
+}
+
+/**
+ * 构建下发给渲染层的完整角色包：manifest + 目录名 + 已校验的情绪立绘集。
+ * @param {string} manifestPath
+ * @returns {{manifest: object|null, dirName: string, emotionSprites: Record<string,string>|null}}
+ */
+function buildCharacterPack(manifestPath = MANIFEST_PATH) {
+  const pack = loadCharacterPack(manifestPath);
+  pack.emotionSprites = resolveEmotionSprites(pack);
+  return pack;
+}
+
+module.exports = {
+  CHARACTER_DIR_NAME,
+  POSES,
+  loadCharacterPack,
+  registerCharacterIpc,
+  resolveEmotionSprites,
+  buildCharacterPack,
+};

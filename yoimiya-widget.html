@@ -220,6 +220,81 @@
       color: #5a5580;
     }
 
+    /* ============================================================
+       情绪待机节奏（挂在 .character-frame，以脚底为锚点）
+       每种情绪一个很小的循环动作；写在 motion-* 之前，
+       所以事件动作触发时后者按源码顺序覆盖前者。
+       ============================================================ */
+    .character-frame[class*='idle-'] {
+      transform-origin: 50% 100%;
+    }
+
+    .character-frame.idle-excited {
+      animation: excitedBop 1.7s ease-in-out infinite;
+    }
+
+    @keyframes excitedBop {
+      0%,
+      100% {
+        transform: translateY(0) scale(1, 1);
+      }
+      30% {
+        transform: translateY(-4px) scale(0.99, 1.01);
+      }
+      60% {
+        transform: translateY(0) scale(1.012, 0.99);
+      }
+    }
+
+    .character-frame.idle-sleepy {
+      animation: sleepySway 5s ease-in-out infinite;
+    }
+
+    @keyframes sleepySway {
+      0%,
+      100% {
+        transform: rotate(0deg) translateY(0);
+      }
+      50% {
+        transform: rotate(-2deg) translateY(2px);
+      }
+    }
+
+    .character-frame.idle-sad {
+      animation: sadDroop 4.6s ease-in-out infinite;
+    }
+
+    @keyframes sadDroop {
+      0%,
+      100% {
+        transform: translateY(0) rotate(0deg);
+      }
+      50% {
+        transform: translateY(3px) rotate(1deg);
+      }
+    }
+
+    .character-frame.idle-shy {
+      animation: shyFidget 3.8s ease-in-out infinite;
+    }
+
+    @keyframes shyFidget {
+      0%,
+      40%,
+      80%,
+      100% {
+        transform: rotate(0deg);
+      }
+      20% {
+        transform: rotate(-1.2deg);
+      }
+      60% {
+        transform: rotate(1.2deg);
+      }
+    }
+
+    /* idle / happy：用默认呼吸即可，不额外加动作 */
+
     /* 角色动作（P1-C：motion 关键帧，挂到 .character-frame） */
     .character-frame.motion-wave {
       animation: motionWave 0.9s ease-in-out 2;
@@ -367,8 +442,9 @@
       transition: filter 0.3s ease, transform 0.15s ease;
     }
 
-    /* Subtle scale-down on click for tactile feedback */
-    .character-frame:active {
+    /* Subtle scale-down on click for tactile feedback
+       （挂在 .character-inner 上：.character-frame 自身被 idle-*/motion-* 动画占用） */
+    .character-frame:active .character-inner {
       transform: scale(0.93);
     }
 
@@ -390,13 +466,119 @@
       justify-content: center;
     }
 
-    /* Character image */
-    .character-inner img {
+    /* ============================================================
+       Character image —— 分层立绘容器
+       ============================================================ */
+    .character-inner {
+      position: relative;
+      transform-origin: 50% 100%; /* 以脚底为锚点缩放：呼吸/口型/弹跳都"站得住" */
+    }
+
+    /* 呼吸层：持续的生命感（幅度很小，避免抢注意力） */
+    .sprite-breath {
+      position: absolute;
+      inset: 0;
+      transform-origin: 50% 100%;
+      animation: breath 3.2s ease-in-out infinite;
+    }
+
+    @keyframes breath {
+      0%,
+      100% {
+        transform: scale(1, 1);
+      }
+      50% {
+        transform: scale(1.012, 0.985);
+      }
+    }
+
+    /* 立绘层：两张叠放，靠透明度交叉过渡切换情绪 */
+    .character-inner .sprite-layer {
+      position: absolute;
+      inset: 0;
       width: 100%;
       height: 100%;
       object-fit: contain;
-      /* 注意：不能加 image-rendering: pixelated ——
-         新的透明 WebP 是平滑抗锯齿边缘，pixelated 会把边缘打成锯齿块 */
+      object-position: center bottom;
+      opacity: 0;
+      transition: opacity 180ms ease-out;
+      will-change: opacity;
+      /* 注意：不能加 image-rendering: pixelated —— 平滑抗锯齿边缘会被打成锯齿块 */
+    }
+
+    .character-inner .sprite-layer.is-active {
+      opacity: 1;
+    }
+
+    /* 切换情绪时"弹一下"：先压扁再回弹，掩盖两张图的硬切 */
+    .character-inner.pose-pop {
+      animation: posePop 240ms cubic-bezier(0.3, 1.4, 0.5, 1);
+    }
+
+    @keyframes posePop {
+      0% {
+        transform: scale(1.08, 0.9);
+      }
+      60% {
+        transform: scale(0.97, 1.04);
+      }
+      100% {
+        transform: scale(1, 1);
+      }
+    }
+
+    /* 说话时每句话到达轻弹一下（TTS 口型同步之外的通用反馈） */
+    .character-inner.talking {
+      animation: talkBob 320ms ease-out;
+    }
+
+    @keyframes talkBob {
+      0% {
+        transform: translateY(0) scale(1);
+      }
+      30% {
+        transform: translateY(-2px) scale(1.02, 0.98);
+      }
+      100% {
+        transform: none;
+      }
+    }
+
+    /* 情绪小粒子：从头顶附近飘起并淡出 */
+    .emotion-particles {
+      position: absolute;
+      left: 50%;
+      top: 18%;
+      width: 0;
+      height: 0;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .emotion-particles span {
+      position: absolute;
+      left: 0;
+      top: 0;
+      font-size: 13px;
+      line-height: 1;
+      white-space: nowrap;
+      opacity: 0;
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+      animation: floatUp 1.3s ease-out forwards;
+    }
+
+    @keyframes floatUp {
+      0% {
+        opacity: 0;
+        transform: translate(0, 6px) scale(0.6);
+      }
+      20% {
+        opacity: 1;
+      }
+      100% {
+        opacity: 0;
+        transform: translate(var(--px, 0px), -34px) scale(1.05) rotate(var(--pr, 0deg));
+      }
     }
 
     /* ============================================================
@@ -596,12 +778,15 @@
       -webkit-user-drag: none;
     }
 
-    /* ⑤ 去除所有装饰背景 —— 只留 GIF 人物主体 */
+    /* ⑤ 去除所有装饰背景 —— 只留角色主体 */
     body.electron-mode .character-frame {
       background: transparent;          /* 去掉橙金渐变边框 */
       filter: none;                     /* 去掉 drop-shadow 发光 */
       clip-path: none;                  /* 去掉像素缺角裁剪 */
       padding: 0;                       /* 去掉内边距 */
+      /* 全身立绘是竖构图，给足高度；宽度略大于立绘以保留可点击区域 */
+      width: 128px;
+      height: 160px;
     }
 
     body.electron-mode .character-inner {
@@ -664,15 +849,29 @@
 
     <!-- Character Frame -->
     <div class="character-frame" id="characterFrame">
-      <!-- Inner image area -->
-      <div class="character-inner">
-        <img
-          src="yoimiya.gif"
-          alt="宵宫 - Yoimiya"
-          draggable="false"
-          onerror="this.style.display='none';this.parentElement.innerHTML='<span style=font-size:56px;line-height:1>🎆</span>'"
-        />
+      <!--
+        立绘容器 —— 分层原则：每一层只负责一种变换，互不覆盖
+          .yoimiya-widget   悬浮 float（整体）
+          .character-frame  事件动作 motion-* / 情绪待机 idle-*
+          .character-inner  说话口型（JS 内联 transform）+ 切换弹一下
+          .sprite-breath    持续呼吸
+          .sprite-layer ×2  情绪立绘交叉淡入淡出
+      -->
+      <div class="character-inner" id="characterInner">
+        <div class="sprite-breath">
+          <img
+            class="sprite-layer is-active"
+            id="spriteA"
+            alt="宵宫 - Yoimiya"
+            draggable="false"
+            onerror="this.style.display='none';this.parentElement.innerHTML='<span style=font-size:56px;line-height:1>🎆</span>'"
+          />
+          <img class="sprite-layer" id="spriteB" alt="" draggable="false" />
+        </div>
       </div>
+
+      <!-- 情绪小粒子（✨ 💕 💧 💤），由 JS 按需生成 -->
+      <div class="emotion-particles" id="emotionParticles" aria-hidden="true"></div>
 
       <!-- Pixel corner accents -->
       <div class="pixel-corner tl"></div>
@@ -785,20 +984,58 @@
         ? character.lines
         : ['烟花易逝，人情长存！✨', '一起去玩吧！😆'];
 
-      /** 角色立绘 / 动画资源（相对应用根目录） */
-      const SPRITE_SRC = character?.sprite || 'yoimiya.gif';
-
       /** 语音文件名数组（全小写 .mp3，与 manifest 同步） */
       const VOICE_FILES = (character?.voices?.length)
         ? character.voices
         : [];
 
-      // ---- 角色立绘：优先使用角色包 manifest 声明的资源 ----
-      // 静态 src="yoimiya.gif" 仅作为浏览器直接打开时的兜底
-      const spriteImg = document.querySelector('.character-inner img');
-      if (spriteImg && character?.sprite) {
-        spriteImg.src = character.sprite;
+      // ========================================================
+      // 🖼️ 情绪立绘集：双层交叉淡入淡出
+      // ========================================================
+
+      /** 情绪 → 立绘路径（主进程已校验齐全；角色包没有情绪集时为 null） */
+      const EMOTION_SPRITES = window.electronAPI?.getEmotionSprites?.() || null;
+
+      const characterInner = document.getElementById('characterInner');
+      const spriteLayers = [document.getElementById('spriteA'), document.getElementById('spriteB')];
+      let activeLayer = 0;    // 当前显示的那一层下标
+      let currentPose = null; // 当前姿势名
+      let poseToken = 0;      // 快速连切时，丢弃迟到的旧图 onload
+
+      /**
+       * 切换姿势立绘。新图加载完成后才交接，期间旧图保持可见（不闪白）。
+       * @param {string} pose idle / happy / excited / shy / sad / sleepy
+       * @returns {boolean} 是否由情绪集接管了显示
+       */
+      function setPose(pose) {
+        if (!EMOTION_SPRITES) return false;
+        const src = EMOTION_SPRITES[pose] || EMOTION_SPRITES.idle;
+        if (!src) return false;
+        if (currentPose === pose) return true;
+        currentPose = pose;
+
+        const token = ++poseToken;
+        const next = spriteLayers[1 - activeLayer];
+        const cur = spriteLayers[activeLayer];
+        next.onload = () => {
+          if (token !== poseToken) return;
+          next.classList.add('is-active');
+          cur.classList.remove('is-active');
+          activeLayer = 1 - activeLayer;
+        };
+        next.onerror = () => {
+          /* 加载失败：保持当前画面 */
+        };
+        next.src = src;
+        return true;
       }
+
+      // 初始立绘：有情绪集 → 待机姿势；否则用单张 sprite
+      //（浏览器直接打开、无 electronAPI 时回落根目录 GIF）
+      spriteLayers[0].src = EMOTION_SPRITES
+        ? EMOTION_SPRITES.idle
+        : character?.sprite || 'yoimiya.gif';
+      if (EMOTION_SPRITES) currentPose = 'idle';
 
       /**
        * 音效状态 —— 由主进程右键菜单通过 IPC 控制
@@ -1073,6 +1310,9 @@
         // 清除计时器（避免隐藏后计时器再次触发 hideBubble）
         clearAutoHideTimer();
 
+        // 气泡消失后稍等片刻回到待机姿势
+        scheduleReturnToIdle();
+
       }
 
       // ========================================================
@@ -1097,11 +1337,12 @@
         resetAutoHideTimer();
       }
 
-      /** 流式收到一句话 → 累积更新气泡 */
+      /** 流式收到一句话 → 累积更新气泡 + 角色轻弹一下（说话反馈） */
       function appendAiSentence(sentence) {
         aiSentences.push(sentence);
         bubbleText.textContent = aiSentences.join('');
         bubble.classList.remove('thinking');
+        pulseTalking();
         resetAutoHideTimer();
       }
 
@@ -1186,7 +1427,8 @@
       let ttsPlaying = false;
       const TTS_WAIT_MS = 4000;
 
-      const characterImg = document.querySelector('.character-inner img');
+      // 口型变换作用于容器 .character-inner（不与立绘层、呼吸层各自的变换冲突）
+      const characterImg = characterInner;
 
       /** 播放主进程下发的 TTS wav Buffer（IPC 传输后为 Uint8Array） */
       function playTtsBuffer(wavBuffer) {
@@ -1315,13 +1557,9 @@
       // 🎭 情绪-动作联动（P1-C：LLM emotion/motion → 气泡配色 + 角色动作）
       // ========================================================
 
-      const EMOTION_CLASSES = [
-        'emotion-happy',
-        'emotion-shy',
-        'emotion-sad',
-        'emotion-excited',
-        'emotion-sleepy',
-      ];
+      const EMOTION_NAMES = ['happy', 'shy', 'sad', 'excited', 'sleepy'];
+      const EMOTION_CLASSES = EMOTION_NAMES.map((e) => `emotion-${e}`);
+      const IDLE_CLASSES = EMOTION_NAMES.map((e) => `idle-${e}`);
       const MOTION_CLASSES = ['motion-wave', 'motion-jump', 'motion-laugh'];
       const MOTION_MAP = {
         idle: null,
@@ -1330,26 +1568,101 @@
         laugh: 'motion-laugh',
       };
 
+      /** 每种情绪飘起的小粒子（切换情绪时从头顶附近冒出） */
+      const EMOTION_PARTICLES = {
+        happy: ['✨', '⭐', '✨'],
+        excited: ['🎆', '✨', '🎇'],
+        shy: ['💕', '🌸', '💕'],
+        sad: ['💧', '💧', '💧'],
+        sleepy: ['💤', '💤', '💤'],
+      };
+      const emotionParticles = document.getElementById('emotionParticles');
+
+      function burstEmotionParticles(emo) {
+        const glyphs = EMOTION_PARTICLES[emo];
+        if (!glyphs || !emotionParticles) return;
+        glyphs.forEach((glyph, i) => {
+          const s = document.createElement('span');
+          s.textContent = glyph;
+          s.style.setProperty('--px', `${Math.round(Math.random() * 44 - 22)}px`);
+          s.style.setProperty('--pr', `${Math.round(Math.random() * 30 - 15)}deg`);
+          s.style.animationDelay = `${i * 0.12}s`;
+          emotionParticles.appendChild(s);
+          setTimeout(() => s.remove(), 1800);
+        });
+      }
+
+      /** 切换立绘时"弹一下"（先压扁再回弹，掩盖两张图的硬切） */
+      function popPose() {
+        characterInner.classList.remove('pose-pop');
+        void characterInner.offsetWidth; // 强制重排以重触发动画
+        characterInner.classList.add('pose-pop');
+      }
+
+      /** 说话时每句话到达轻弹一下 */
+      function pulseTalking() {
+        characterInner.classList.remove('talking');
+        void characterInner.offsetWidth;
+        characterInner.classList.add('talking');
+      }
+
+      // 一次性动画类播完后自动摘除
+      characterInner.addEventListener('animationend', (e) => {
+        if (e.animationName === 'posePop') characterInner.classList.remove('pose-pop');
+        if (e.animationName === 'talkBob') characterInner.classList.remove('talking');
+      });
+
+      /** 气泡消失一段时间后回到待机姿势 —— 情绪是反应，不是常驻状态 */
+      let idleReturnTimer = null;
+      const IDLE_RETURN_MS = 2500;
+
+      function scheduleReturnToIdle() {
+        if (!EMOTION_SPRITES) return;
+        clearTimeout(idleReturnTimer);
+        idleReturnTimer = setTimeout(() => {
+          for (const c of IDLE_CLASSES) characterFrame.classList.remove(c);
+          if (setPose('idle')) popPose();
+        }, IDLE_RETURN_MS);
+      }
+
+      let motionTimer = null;
+
       /**
-       * 应用情绪与动作：
-       *   emotion → 气泡配色变量（happy/shy/sad/excited/sleepy）
-       *   motion  → 角色关键帧动画（wave/jump/laugh，播放完自动移除）
+       * 应用情绪与动作（整套联动）：
+       *   emotion → ① 气泡配色  ② 待机节奏 idle-*  ③ 对应情绪立绘 + 弹一下 + 小粒子
+       *   motion  → ④ 角色关键帧动画（wave/jump/laugh，播放完自动移除）
        */
       function applyEmotion(emotion, motion) {
-        const emo = ['happy', 'shy', 'sad', 'excited', 'sleepy'].includes(emotion)
-          ? emotion
-          : 'happy';
+        const emo = EMOTION_NAMES.includes(emotion) ? emotion : 'happy';
+        clearTimeout(idleReturnTimer); // 新情绪到来，取消"回待机"的排程
+
+        // ① 气泡配色
         for (const c of EMOTION_CLASSES) bubble.classList.remove(c);
         bubble.classList.add(`emotion-${emo}`);
 
+        // ② 待机节奏
+        for (const c of IDLE_CLASSES) characterFrame.classList.remove(c);
+        characterFrame.classList.add(`idle-${emo}`);
+
+        // ③ 情绪立绘（角色包没有情绪集时 setPose 返回 false，其余联动照常）
+        if (setPose(emo)) {
+          popPose();
+          burstEmotionParticles(emo);
+        }
+
+        // ④ 事件动作
         for (const c of MOTION_CLASSES) characterFrame.classList.remove(c);
+        clearTimeout(motionTimer);
         const motionClass = MOTION_MAP[motion];
         if (motionClass) {
           void characterFrame.offsetWidth; // 强制重排以重触发动画
           characterFrame.classList.add(motionClass);
-          setTimeout(() => characterFrame.classList.remove(motionClass), 2200);
+          motionTimer = setTimeout(() => characterFrame.classList.remove(motionClass), 2200);
         }
       }
+
+      // 调试 / 自动化测试入口（仅暴露内部的几个纯展示函数，无外部输入面）
+      window.__widget = { applyEmotion, setPose, getPose: () => currentPose };
 
       // ========================================================
       // 🎚️ 音量滑条（P0-7：0-100，右键菜单唤起，持久化）

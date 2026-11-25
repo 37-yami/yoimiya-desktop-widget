@@ -10,8 +10,8 @@ const path = require('path');
 /** 窗口宽度（容纳角色+气泡+浮动空间） */
 const WIDGET_WIDTH = 240;
 
-/** 窗口高度 */
-const WIDGET_HEIGHT = 300;
+/** 窗口高度（角色框 160 + 提示行 + 底部留白 + 气泡空间） */
+const WIDGET_HEIGHT = 350;
 
 /** 默认停靠位置：距屏幕右边缘（px） */
 const EDGE_RIGHT = 24;
