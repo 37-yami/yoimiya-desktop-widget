@@ -323,6 +323,14 @@ npm install
 npm start
 ```
 
+### 想用老版本？
+
+改造前的 v1.1.0 保留在 `master` 分支（当前版本在 `main`）：
+
+```bash
+git clone -b master https://github.com/37-yami/yoimiya-desktop-widget.git
+```
+
 ### npm install 报 EPERM / cleanup Failed to remove some directories？
 
 有程序占用了 `node_modules` 里的文件（常见是 VSCode 或正在运行的挂件）。关掉它们，
